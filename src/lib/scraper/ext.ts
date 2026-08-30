@@ -231,8 +231,12 @@ async function searchTorrentioEngine(
     let imdbId = '';
     if (metaRes.ok) {
       const metaData = await metaRes.json();
-      if (metaData.metas && metaData.metas.length > 0) {
-        imdbId = metaData.metas[0].id;
+      if (metaData.metas && Array.isArray(metaData.metas) && metaData.metas.length > 0) {
+        const cleanLower = cleanTitle.toLowerCase();
+        const exactMatch = metaData.metas.find((m: any) => m.name?.toLowerCase() === cleanLower);
+        const prefixMatch = metaData.metas.find((m: any) => m.name?.toLowerCase().startsWith(cleanLower));
+        const matched = exactMatch || prefixMatch || metaData.metas[0];
+        imdbId = matched.id;
       }
     }
 
@@ -533,33 +537,60 @@ export async function searchExtTorrents(
       options.category === 'TV') &&
     !isSingleEpisode;
 
-  // 1. For Season Packs or Non-Video: Search Universal Swarms FIRST for complete batch torrents
-  if (isSeasonPack || isNonVideo) {
-    const universalResult = await searchUniversalSwarm(query, options);
-    if (universalResult.success && universalResult.items.length > 0) {
-      return universalResult;
+  // Run Swarms and/or Torrentio based on search type
+  const searchPromises: Promise<SearchResult>[] = [];
+
+  // Universal Swarm (Always queried for all categories)
+  searchPromises.push(searchUniversalSwarm(query, options));
+
+  // Torrentio (Queried for Movies and specific Single TV Episodes)
+  const isVideoForTorrentio = (options.category === 'Movies' || isSingleEpisode) && !isNonVideo && !isSeasonPack;
+  if (isVideoForTorrentio) {
+    searchPromises.push(searchTorrentioEngine(query, options));
+  }
+
+  const results = await Promise.allSettled(searchPromises);
+  const combinedItems: TorrentItem[] = [];
+
+  for (const res of results) {
+    if (res.status === 'fulfilled' && res.value.success && res.value.items.length > 0) {
+      combinedItems.push(...res.value.items);
     }
   }
 
-  // 2. For Movies or Single TV Episodes: Try Torrentio
-  const isVideoSearch =
-    (options.category === 'Movies' ||
-      options.category === 'TV' ||
-      /\b(?:s\d{1,2}e\d{1,2}|season|episode|1080p|720p|2160p|4k|bluray)\b/i.test(query)) &&
-    !isNonVideo;
+  if (combinedItems.length > 0) {
+    // Deduplicate by infoHash or normalized title
+    const seenHashes = new Set<string>();
+    const seenTitles = new Set<string>();
+    const uniqueItems: TorrentItem[] = [];
 
-  if (isVideoSearch) {
-    const torrentioResult = await searchTorrentioEngine(query, options);
-    if (torrentioResult.success && torrentioResult.items.length > 0) {
-      return torrentioResult;
+    for (const item of combinedItems) {
+      const hash = item.infoHash || (item.id && item.id.length === 40 ? item.id.toUpperCase() : undefined);
+      const cleanTitle = item.title.toLowerCase().replace(/[\s._-]+/g, ' ').trim();
+
+      if (hash && seenHashes.has(hash)) continue;
+      if (seenTitles.has(cleanTitle)) continue;
+
+      if (hash) seenHashes.add(hash);
+      seenTitles.add(cleanTitle);
+      uniqueItems.push(item);
     }
+
+    return {
+      success: true,
+      query,
+      total: uniqueItems.length,
+      items: uniqueItems,
+      mirrorUsed: mirrors[0],
+      page
+    };
   }
 
-  // 3. Fallback to Universal Swarm if not already attempted
-  if (!isSeasonPack && !isNonVideo) {
-    const universalResult = await searchUniversalSwarm(query, options);
-    if (universalResult.success && universalResult.items.length > 0) {
-      return universalResult;
+  // Fallback to Torrentio if not already tried
+  if (!isVideoForTorrentio && !isNonVideo) {
+    const fallbackTorrentio = await searchTorrentioEngine(query, options);
+    if (fallbackTorrentio.success && fallbackTorrentio.items.length > 0) {
+      return fallbackTorrentio;
     }
   }
 

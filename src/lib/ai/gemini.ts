@@ -2,10 +2,24 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { EXT_QUERY_REFINER_PROMPT } from './prompts';
 import { parseSizeBytes } from '../scraper/ext';
 
+export type QueryIntent =
+  | 'tv_season_pack'
+  | 'tv_single_episode'
+  | 'movie'
+  | 'game'
+  | 'software'
+  | 'music'
+  | 'book'
+  | 'anime'
+  | 'other';
+
 export interface QueryAnalysis {
   cleanQuery: string;
   coreTitle: string;
+  canonicalTitle?: string;
+  alternateTitles?: string[];
   category: string;
+  intent: QueryIntent;
   qualityPreference: string;
   maxSizeBytes?: number;
   minSizeBytes?: number;
@@ -18,6 +32,7 @@ export interface QueryAnalysis {
     isSeasonPack?: boolean;
     isCompleteSeries?: boolean;
   };
+  searchQueries?: string[];
   explanation: string;
 }
 
@@ -219,55 +234,113 @@ export function extractCoreTitle(text: string): string {
 }
 
 /**
+ * Generate candidate search queries for indexers based on intent
+ */
+export function generateSearchQueries(
+  coreTitle: string,
+  intent: QueryIntent,
+  seasonEpisode?: { season?: number; episode?: number; tag?: string; isSeasonPack?: boolean; isCompleteSeries?: boolean },
+  qualityPreference?: string
+): string[] {
+  const queries: string[] = [];
+  const base = coreTitle;
+
+  if (intent === 'tv_season_pack') {
+    const season = seasonEpisode?.season;
+    if (season) {
+      const sPadded = season.toString().padStart(2, '0');
+      if (qualityPreference && qualityPreference !== 'any') {
+        queries.push(`${base} Season ${season} ${qualityPreference}`);
+        queries.push(`${base} S${sPadded} ${qualityPreference}`);
+      }
+      queries.push(`${base} Season ${season} Complete`);
+      queries.push(`${base} S${sPadded} Complete`);
+      queries.push(`${base} Season ${season}`);
+      queries.push(`${base} S${sPadded}`);
+      queries.push(`${base} Complete Series`);
+      queries.push(`${base} Seasons`);
+    } else {
+      queries.push(`${base} Complete Series`);
+      queries.push(`${base} All Seasons`);
+      queries.push(`${base} Complete`);
+      queries.push(base);
+    }
+  } else if (intent === 'tv_single_episode') {
+    if (seasonEpisode?.tag) {
+      if (qualityPreference && qualityPreference !== 'any') {
+        queries.push(`${base} ${seasonEpisode.tag} ${qualityPreference}`);
+      }
+      queries.push(`${base} ${seasonEpisode.tag}`);
+    }
+    if (seasonEpisode?.season && seasonEpisode?.episode) {
+      queries.push(`${base} Season ${seasonEpisode.season} Episode ${seasonEpisode.episode}`);
+      queries.push(`${base} E${seasonEpisode.episode.toString().padStart(2, '0')}`);
+      queries.push(`${base} S${seasonEpisode.season.toString().padStart(2, '0')}`);
+    }
+    queries.push(base);
+  } else if (intent === 'game') {
+    queries.push(base);
+    queries.push(`${base} Repack`);
+    queries.push(`${base} PC`);
+    if (base.toLowerCase().includes('gta') || base.toLowerCase().includes('grand theft auto')) {
+      queries.push('Grand Theft Auto V');
+      queries.push('GTA V');
+      queries.push('GTA 5');
+    }
+  } else if (intent === 'software') {
+    queries.push(base);
+    queries.push(`${base} ISO`);
+    queries.push(`${base} x64`);
+  } else {
+    if (qualityPreference && qualityPreference !== 'any') {
+      queries.push(`${base} ${qualityPreference}`);
+    }
+    queries.push(base);
+  }
+
+  return Array.from(new Set(queries.filter(q => q && q.length > 1)));
+}
+
+/**
  * Heuristic fallback for query refinement
  */
 export function heuristicRefineQuery(input: string): QueryAnalysis {
-  // Step 1: Extract size constraints
   const { cleanedText: textAfterSizes, maxSizeBytes, minSizeBytes } = extractSizeConstraints(input);
-
-  // Step 2: Extract feature qualifiers (subtitles, audio)
   const { cleanedText: textAfterQualifiers, requiresSubtitles, requiresDualAudio } = extractFeatureQualifiers(textAfterSizes);
-
-  // Step 3: Extract season & episode
   const { seasonEpisode } = extractSeasonEpisode(textAfterQualifiers);
-
-  // Step 4: Clean conversational prefixes
   let text = cleanConversationalPrefix(textAfterQualifiers);
-
-  // Extract core title
   const coreTitle = extractCoreTitle(text);
-
-  // Detect category keywords
-  let category = 'All';
   const lower = text.toLowerCase();
 
-  if (seasonEpisode || /\b(s\d{1,2}e\d{1,2}|season\s*\d+|episode\s*\d+|series|tv show|seasons)\b/.test(lower)) {
+  let category = 'All';
+  let intent: QueryIntent = 'movie';
+
+  if (seasonEpisode?.isSeasonPack || seasonEpisode?.isCompleteSeries) {
     category = 'TV';
-  } else if (/\b(movie|film|bluray|web-dl|hdr|remux|imax|cinemas?)\b/.test(lower)) {
+    intent = 'tv_season_pack';
+  } else if (seasonEpisode?.episode !== undefined) {
+    category = 'TV';
+    intent = 'tv_single_episode';
+  } else if (/\b(s\d{1,2}e\d{1,2}|season\s*\d+|episode\s*\d+|series|tv show|seasons)\b/.test(lower)) {
+    category = 'TV';
+    intent = 'tv_season_pack';
+  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable|iso|os|desktop|x64|amd64)\b/.test(lower)) {
+    category = 'Apps';
+    intent = 'software';
+  } else if (/\b(game|repack|pc game|fitgirl|dodi|crack|patch|mod|gta)\b/.test(lower)) {
+    category = 'Games';
+    intent = 'game';
+  } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
+    category = 'Music';
+    intent = 'music';
+  } else if (/\b(anime|manga|raw|subs?|crunchyroll|batch)\b/.test(lower)) {
+    category = 'Anime';
+    intent = 'anime';
+  } else {
     category = 'Movies';
-  } else if (/\b(book|ebook|pdf|epub|audiobook|mobi|novel|guide|manual)\b/.test(lower)) {
-    category = 'Books';
-  } else if (/\b(game|repack|pc game|fitgirl|dodi|iso|crack|patch|mod)\b/.test(lower)) {
-    category = 'Games';
-  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable)\b/.test(lower)) {
-    category = 'Apps';
-  } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
-    category = 'Music';
-  } else if (/\b(anime|manga|raw|subs?|crunchyroll|batch)\b/.test(lower)) {
-    category = 'Anime';
-  } else if (/\b(book|ebook|pdf|epub|audiobook|mobi|novel|guide|manual)\b/.test(lower)) {
-    category = 'Books';
-  } else if (/\b(game|repack|pc game|fitgirl|dodi|iso|crack|patch|mod)\b/.test(lower)) {
-    category = 'Games';
-  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable)\b/.test(lower)) {
-    category = 'Apps';
-  } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
-    category = 'Music';
-  } else if (/\b(anime|manga|raw|subs?|crunchyroll|batch)\b/.test(lower)) {
-    category = 'Anime';
+    intent = 'movie';
   }
 
-  // Detect quality preference
   let qualityPreference = 'any';
   if (/\b(4k|2160p|uhd)\b/.test(lower)) qualityPreference = '4k';
   else if (/\b(1080p|fhd)\b/.test(lower)) qualityPreference = '1080p';
@@ -275,17 +348,22 @@ export function heuristicRefineQuery(input: string): QueryAnalysis {
   else if (/\b(flac|lossless|wav)\b/.test(lower)) qualityPreference = 'lossless';
   else if (/\b(pdf|epub)\b/.test(lower)) qualityPreference = 'pdf';
 
+  const searchQueries = generateSearchQueries(coreTitle || text || input, intent, seasonEpisode, qualityPreference);
+
   return {
     cleanQuery: text || input,
     coreTitle: coreTitle || text || input,
+    canonicalTitle: coreTitle || text || input,
     category,
+    intent,
     qualityPreference,
     maxSizeBytes,
     minSizeBytes,
     requiresSubtitles,
     requiresDualAudio,
     seasonEpisode,
-    explanation: 'Heuristic keyword & constraint extraction'
+    searchQueries,
+    explanation: 'Heuristic keyword & intent extraction'
   };
 }
 
@@ -318,17 +396,31 @@ export async function analyzeQueryWithGemini(
     const responseText = result.response.text();
     const parsed = JSON.parse(responseText);
 
-    const clean = parsed.cleanQuery || heuristic.cleanQuery;
+    const canonicalTitle = parsed.canonicalTitle || heuristic.canonicalTitle || heuristic.coreTitle;
+    const alternateTitles = Array.isArray(parsed.alternateTitles) ? parsed.alternateTitles : [];
+    const intent: QueryIntent = parsed.intent || heuristic.intent;
+    const category = parsed.category || heuristic.category;
+    const qualityPreference = parsed.qualityPreference || heuristic.qualityPreference;
+
+    // Merge search queries
+    const searchQueries = Array.isArray(parsed.searchQueries) && parsed.searchQueries.length > 0
+      ? parsed.searchQueries
+      : generateSearchQueries(canonicalTitle, intent, heuristic.seasonEpisode, qualityPreference);
+
     return {
-      cleanQuery: clean,
-      coreTitle: extractCoreTitle(clean) || heuristic.coreTitle,
-      category: parsed.category || heuristic.category,
-      qualityPreference: parsed.qualityPreference || heuristic.qualityPreference,
+      cleanQuery: parsed.cleanQuery || heuristic.cleanQuery,
+      coreTitle: canonicalTitle,
+      canonicalTitle,
+      alternateTitles,
+      category,
+      intent,
+      qualityPreference,
       maxSizeBytes: heuristic.maxSizeBytes,
       minSizeBytes: heuristic.minSizeBytes,
       requiresSubtitles: heuristic.requiresSubtitles,
       requiresDualAudio: heuristic.requiresDualAudio,
       seasonEpisode: heuristic.seasonEpisode,
+      searchQueries,
       explanation: parsed.explanation || 'Analyzed with Gemini AI'
     };
   } catch (err: any) {
@@ -351,7 +443,7 @@ export async function synthesizeAgentResponse(
 
   if (!apiKey || topItems.length === 0) {
     if (topItems.length === 0) {
-      let msg = `I searched ext.to for **"${analysis.coreTitle || analysis.cleanQuery}"** but couldn't find any active releases.`;
+      let msg = `I searched ext.to and swarm indexers for **"${analysis.coreTitle || analysis.cleanQuery}"** but couldn't find any active releases.`;
       if (analysis.maxSizeBytes) {
         msg += ` (Note: Size constraint was under ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB).`;
       }
@@ -380,21 +472,19 @@ export async function synthesizeAgentResponse(
     const prompt = `
 You are Sauceror, an AI torrent assistant for ext.to.
 User Query: "${userQuery}"
-Movie / Content Title: "${analysis.coreTitle}"
-Matching Releases for this title on ext.to:
+Content Title: "${analysis.coreTitle}"
+Matching Releases on ext.to & verified swarms:
 ${itemsSummary}
 ${filterNote ? `Constraint Note: ${filterNote}` : ''}
 
 Write a helpful, friendly, and concise response (max 2-3 sentences):
 1. Confirm that you have found matching releases for "${analysis.coreTitle}".
 2. Highlight the top recommendation and confirm how it matches the user's requirements (e.g. quality, size, seed health, subtitles).
-Do NOT output raw magnet links in the prose text because the frontend will render interactive cards with 1-click magnet buttons.
 `;
 
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch (err: any) {
-    const best = topItems[0];
-    return `I found **${topItems.length}** matching releases for **"${analysis.coreTitle || analysis.cleanQuery}"** on ext.to. The top recommendation is **${best.title}** (${best.size}, ${best.seeders} seeds).`;
+    return `Found **${topItems.length}** verified releases for **"${analysis.coreTitle}"**. Top pick: **${topItems[0]?.title}** (${topItems[0]?.size}, ${topItems[0]?.seeders} seeds).`;
   }
 }
