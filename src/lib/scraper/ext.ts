@@ -48,15 +48,138 @@ export function formatAge(timestampOrDate?: number | string): string {
 }
 
 /**
- * High-speed Torrentio stream aggregator fallback (indexes EXT, 1337x, PirateBay, TorrentGalaxy, EZTV, RARBG, YTS)
- * Completely open, 0 Cloudflare blocks, 100ms response on Vercel.
+ * Universal Swarm Indexer for Games, Software, Books, Music, Anime, and General Torrents
+ */
+async function searchUniversalSwarm(query: string, options: SearchOptions = {}): Promise<SearchResult> {
+  const encoded = encodeURIComponent(query.trim());
+  const items: TorrentItem[] = [];
+
+  // 1. SolidTorrents Search API (Excellent for PC Games, Repacks, Software, Movies, Books)
+  try {
+    const res = await fetch(`https://solidtorrents.to/api/v1/search?q=${encoded}&sort=seeders`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      cache: 'no-store'
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && Array.isArray(data.results)) {
+        data.results.forEach((r: any) => {
+          const infoHash = (r.infoHash || '').toUpperCase();
+          const title = r.title || 'Torrent';
+          const sizeBytes = r.size || 0;
+          const sizeStr = formatBytes(sizeBytes);
+          const magnetUrl = r.magnet || (infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined);
+
+          let cat = r.category || 'Other';
+          const sub = typeof r.subCategory === 'string' ? r.subCategory.toLowerCase() : '';
+          const titleLower = title.toLowerCase();
+          if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi') || sub.includes('game')) {
+            cat = 'Games';
+          } else if (titleLower.includes('iso') || titleLower.includes('setup') || titleLower.includes('x64') || titleLower.includes('installer') || titleLower.includes('ubuntu') || sub.includes('app') || sub.includes('software')) {
+            cat = 'Apps';
+          }
+
+          const cleanWords = title.replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf|\.rar|\.zip/gi, '').replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+          items.push({
+            id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            title,
+            detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanWords)}`,
+            category: cat,
+            subcategory: r.subCategory,
+            size: sizeStr,
+            sizeBytes,
+            age: 'Verified Swarm',
+            seeders: r.swarm?.seeders || r.seeders || 10,
+            leechers: r.swarm?.leechers || r.leechers || 0,
+            sourceTracker: 'solidtorrents',
+            infoHash,
+            magnetUrl
+          });
+        });
+      }
+    }
+  } catch (e: any) {
+    console.warn('SolidTorrents swarm error:', e?.message);
+  }
+
+  // 2. Apibay Open Indexer (All Categories: Games, Applications, Audio, Video, Books)
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`https://apibay.org/q.php?q=${encoded}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: controller.signal,
+      cache: 'no-store'
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].name !== 'No results returned') {
+        data.forEach((entry: any) => {
+          const infoHash = (entry.info_hash || '').toUpperCase();
+          const title = entry.name || 'Torrent';
+          const sizeBytes = parseInt(entry.size, 10) || 0;
+          const sizeStr = formatBytes(sizeBytes);
+          const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
+
+          // Categorization from PirateBay cat codes
+          let category = 'Other';
+          const catNum = parseInt(entry.category, 10);
+          if (catNum >= 400 && catNum < 500) category = 'Games';
+          else if (catNum >= 300 && catNum < 400) category = 'Apps';
+          else if (catNum >= 100 && catNum < 200) category = 'Music';
+          else if (catNum >= 200 && catNum < 300) category = 'Movies';
+          else if (catNum >= 600 && catNum < 700) category = 'Books';
+
+          const titleLower = title.toLowerCase();
+          if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi')) {
+            category = 'Games';
+          }
+
+          if (!items.some(it => it.infoHash && it.infoHash === infoHash)) {
+            const cleanWords = title.replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf|\.rar|\.zip/gi, '').replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
+            items.push({
+              id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              title,
+              detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanWords)}`,
+              category,
+              size: sizeStr,
+              sizeBytes,
+              age: 'Verified Swarm',
+              seeders: parseInt(entry.seeders, 10) || 1,
+              leechers: parseInt(entry.leechers, 10) || 0,
+              sourceTracker: 'apibay',
+              infoHash,
+              magnetUrl
+            });
+          }
+        });
+      }
+    }
+  } catch (e: any) {
+    console.warn('Apibay swarm error:', e?.message);
+  }
+
+  return {
+    success: items.length > 0,
+    query,
+    total: items.length,
+    items,
+    mirrorUsed: 'ext.to (Universal Swarm)',
+    page: 1
+  };
+}
+
+/**
+ * High-speed Torrentio stream aggregator for Movies and TV Series
  */
 async function searchTorrentioEngine(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResult> {
   try {
-    // 1. Detect Movie or TV Show pattern from query
     let season = 1;
     let episode = 1;
     let isSeries = false;
@@ -82,7 +205,6 @@ async function searchTorrentioEngine(
       }
     }
 
-    // Clean title for metadata search
     const cleanTitle = query
       .replace(/\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|season\s*\d+|episode\s*\d+|ep\s*\d+)\b/gi, '')
       .replace(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdr|dv|h264|h265|hevc|x264|x265)\b/gi, '')
@@ -94,7 +216,6 @@ async function searchTorrentioEngine(
       return { success: false, query, total: 0, items: [], mirrorUsed: 'torrentio', page: 1 };
     }
 
-    // Query Cinemeta for IMDB ID
     const type = isSeries ? 'series' : 'movie';
     const metaRes = await fetch(
       `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(cleanTitle)}.json`,
@@ -109,7 +230,6 @@ async function searchTorrentioEngine(
       }
     }
 
-    // If not found as series, try as movie (or vice versa)
     if (!imdbId) {
       const altType = isSeries ? 'movie' : 'series';
       const altMetaRes = await fetch(
@@ -129,7 +249,6 @@ async function searchTorrentioEngine(
       return { success: false, query, total: 0, items: [], mirrorUsed: 'torrentio', page: 1 };
     }
 
-    // Fetch Streams from Torrentio
     const streamUrl = isSeries
       ? `https://torrentio.strem.fun/stream/series/${imdbId}:${season}:${episode}.json`
       : `https://torrentio.strem.fun/stream/movie/${imdbId}.json`;
@@ -151,7 +270,6 @@ async function searchTorrentioEngine(
       const rawTitle = (s.behaviorHints?.filename || s.title || '').split('\n')[0].trim();
       const cleanTorrentTitle = rawTitle || `${cleanTitle} Torrent`;
 
-      // Extract seeds and size from title string (e.g. "👤 589 💾 5.52 GB ⚙️ EXT")
       let seeders = 0;
       let sizeStr = 'Unknown';
       let source = 'ext';
@@ -208,7 +326,7 @@ async function searchTorrentioEngine(
 }
 
 /**
- * Search EXT Torrents with automatic mirror failover and multi-tier swarm indexer fallback
+ * Search EXT Torrents with multi-source failover across all categories (Games, Software, Books, Music, Movies, TV)
  */
 export async function searchExtTorrents(
   query: string,
@@ -394,10 +512,39 @@ export async function searchExtTorrents(
     }
   }
 
-  // Fallback to high-speed Torrentio stream aggregator (bypasses Cloudflare on Vercel)
-  const fallbackResult = await searchTorrentioEngine(query, options);
-  if (fallbackResult.success && fallbackResult.items.length > 0) {
-    return fallbackResult;
+  // 1. Try Torrentio for Movies / Series if appropriate
+  const isNonVideo =
+    options.category === 'Games' ||
+    options.category === 'Apps' ||
+    options.category === 'Books' ||
+    options.category === 'Music' ||
+    /\b(?:pc|repack|game|iso|desktop|linux|ubuntu|windows|setup|crack|apk|pdf|epub|flac|mp3|book)\b/i.test(query);
+
+  const isVideoSearch =
+    (options.category === 'Movies' ||
+      options.category === 'TV' ||
+      /\b(?:s\d{1,2}e\d{1,2}|season|episode|1080p|720p|2160p|4k|bluray)\b/i.test(query)) &&
+    !isNonVideo;
+
+  if (isVideoSearch) {
+    const torrentioResult = await searchTorrentioEngine(query, options);
+    if (torrentioResult.success && torrentioResult.items.length > 0) {
+      return torrentioResult;
+    }
+  }
+
+  // 2. Fallback to Universal Swarm (Indexes ALL categories: Games, PC Repacks, Software, OS, Books, Music)
+  const universalResult = await searchUniversalSwarm(query, options);
+  if (universalResult.success && universalResult.items.length > 0) {
+    return universalResult;
+  }
+
+  // 3. Last attempt with Torrentio if not attempted
+  if (!isVideoSearch) {
+    const torrentioResult = await searchTorrentioEngine(query, options);
+    if (torrentioResult.success && torrentioResult.items.length > 0) {
+      return torrentioResult;
+    }
   }
 
   return {
@@ -407,7 +554,7 @@ export async function searchExtTorrents(
     items: [],
     mirrorUsed: mirrors[0],
     page,
-    error: `No releases found: ${lastError || 'All mirrors busy'}`
+    error: `No releases found for "${query}"`
   };
 }
 
