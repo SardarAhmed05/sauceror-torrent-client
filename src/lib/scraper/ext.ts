@@ -170,10 +170,17 @@ async function searchTorrentioEngine(
       const sizeBytes = parseSizeBytes(sizeStr);
       const magnetUrl = infoHash ? constructMagnetUri(infoHash, cleanTorrentTitle, FALLBACK_TRACKERS) : undefined;
 
+      const cleanWords = cleanTorrentTitle
+        .replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf/gi, '')
+        .replace(/[[\]()]/g, ' ')
+        .replace(/[._-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       return {
         id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         title: cleanTorrentTitle,
-        detailUrl: infoHash ? `https://extto.com/browse/?q=${infoHash}` : `https://extto.com/browse/?q=${encodeURIComponent(cleanTorrentTitle)}`,
+        detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanWords)}`,
         category: isSeries ? 'TV' : 'Movies',
         size: sizeStr,
         sizeBytes,
