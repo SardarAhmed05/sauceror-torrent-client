@@ -250,22 +250,20 @@ export function generateSearchQueries(
     if (season) {
       const sPadded = season.toString().padStart(2, '0');
       if (qualityPreference && qualityPreference !== 'any') {
-        queries.push(`${base} Season ${season} ${qualityPreference}`);
         queries.push(`${base} S${sPadded} ${qualityPreference}`);
+        queries.push(`${base} Season ${season} ${qualityPreference}`);
       }
-      queries.push(`${base} Season ${season} Complete`);
-      queries.push(`${base} S${sPadded} Complete`);
-      queries.push(`${base} Season ${season}`);
       queries.push(`${base} S${sPadded}`);
+      queries.push(`${base}`);
+      queries.push(`${base} Season ${season}`);
+      queries.push(`${base} S${sPadded} Complete`);
       queries.push(`${base} Complete Series`);
-      queries.push(`${base} Seasons`);
     } else {
+      queries.push(`${base}`);
       queries.push(`${base} Complete Series`);
-      queries.push(`${base} Season 1 Complete`);
+      queries.push(`${base} S01`);
       queries.push(`${base} Season 1`);
       queries.push(`${base} All Seasons`);
-      queries.push(`${base} Complete`);
-      queries.push(base);
     }
   } else if (intent === 'tv_single_episode') {
     if (seasonEpisode?.tag) {
