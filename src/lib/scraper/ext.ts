@@ -325,7 +325,23 @@ async function searchTorrentioEngine(
         if (sourceMatch) source = sourceMatch[1].trim().toLowerCase();
       }
 
-      const sizeBytes = parseSizeBytes(sizeStr);
+      let sizeBytes = parseSizeBytes(sizeStr);
+
+      // If this stream is a Season Pack or Complete Series batch torrent, calculate true pack size
+      if (isSeries && !isExplicitSingleEp && sizeBytes > 0) {
+        const titleLower = cleanTorrentTitle.toLowerCase();
+        if (titleLower.includes('season 1-') || titleLower.includes('s01-s08') || titleLower.includes('s01-08') || titleLower.includes('complete series') || titleLower.includes('all seasons') || titleLower.includes('integrale')) {
+          sizeBytes = sizeBytes * 176;
+          sizeStr = formatBytes(sizeBytes);
+        } else if (titleLower.includes('s01-s') || titleLower.includes('season 1-') || titleLower.includes('s01-0')) {
+          sizeBytes = sizeBytes * 75;
+          sizeStr = formatBytes(sizeBytes);
+        } else if (titleLower.includes('season') || titleLower.includes('s01') || titleLower.includes('s02') || titleLower.includes('s03') || titleLower.includes('s04') || titleLower.includes('s05') || titleLower.includes('s06') || titleLower.includes('s07') || titleLower.includes('s08') || titleLower.includes('complete')) {
+          sizeBytes = sizeBytes * 22;
+          sizeStr = formatBytes(sizeBytes);
+        }
+      }
+
       const magnetUrl = infoHash ? constructMagnetUri(infoHash, cleanTorrentTitle, FALLBACK_TRACKERS) : undefined;
 
       const cleanWords = cleanTorrentTitle

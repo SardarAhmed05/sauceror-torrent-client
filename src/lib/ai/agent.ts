@@ -143,6 +143,20 @@ export function scoreRelease(
     if (isSingleEp || rawSize < 1024 * 1024 * 1024) {
       score -= 500; // Overwhelming penalty so single episode files never beat full season packs
     }
+
+    // Check specific season match if user query specifies a season
+    const userSeasonMatch = query.match(/\b(?:season\s*(\d{1,2})|s(\d{1,2}))\b/i);
+    if (userSeasonMatch) {
+      const sNum = (userSeasonMatch[1] || userSeasonMatch[2]);
+      const sPadded = sNum.padStart(2, '0');
+      const isTargetSeason = title.includes(`season ${sNum}`) || title.includes(`season ${sPadded}`) || title.includes(`s${sPadded}`) || title.includes(`complete series`) || title.includes(`all seasons`) || title.includes('s01-');
+      if (isTargetSeason) {
+        score += 200;
+      } else {
+        score -= 600; // Severe penalty for wrong season
+      }
+    }
+
     if (/\b(?:complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|complete|batch|full\s+season|s01-s\d+|season\s*\d+-\d+)\b/i.test(title)) {
       score += 150;
     }
@@ -324,7 +338,6 @@ export async function runAgent(
             titleLower.includes(`seasons: ${sNum}`) ||
             titleLower.includes(`season 0${sNum}`) ||
             titleLower.includes(`s${sPadded}`) ||
-            titleLower.includes(`s${sNum}`) ||
             titleLower.includes(`season 1-${sNum}`) ||
             titleLower.includes(`seasons 1-${sNum}`) ||
             titleLower.includes(`seasons: 1-`) ||
@@ -332,8 +345,7 @@ export async function runAgent(
             titleLower.includes(`s01-`) ||
             titleLower.includes(`complete series`) ||
             titleLower.includes(`the complete seasons`) ||
-            titleLower.includes(`all seasons`) ||
-            titleLower.includes(`complete season`)
+            titleLower.includes(`all seasons`)
           );
         }
         return (
