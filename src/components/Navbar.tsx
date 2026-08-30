@@ -32,6 +32,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="hidden md:inline-block text-[11px] font-medium text-gray-400 pl-2 border-l border-gray-800">
             AI Torrent Index
           </span>
+          <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+            v1.3.0
+          </span>
         </div>
 
         {/* Center Tabs */}
