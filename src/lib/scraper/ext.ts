@@ -53,7 +53,7 @@ export function formatAge(timestampOrDate?: number | string): string {
 async function searchUniversalSwarm(query: string, options: SearchOptions = {}): Promise<SearchResult> {
   const items: TorrentItem[] = [];
   const cleanQ = query
-    .replace(/\b(?:pc|mac|linux|windows|desktop|iso|pro|edition|amd64|x64|x86)\b/gi, ' ')
+    .replace(/\b(?:pc|desktop|iso|pro|edition|amd64|x64|x86|setup|repack)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const queriesToTry = Array.from(new Set([query.trim(), cleanQ].filter(q => q && q.length > 1)));

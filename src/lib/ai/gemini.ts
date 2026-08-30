@@ -224,7 +224,7 @@ export function cleanConversationalPrefix(input: string): string {
  */
 export function extractCoreTitle(text: string): string {
   let title = text
-    .replace(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|imax|hdr|dv|h264|h265|flac|lossless|pdf|epub|iso|repack|patch|crack|pc|mac|linux|windows|desktop|pro|edition|amd64|x64|x86)\b/gi, ' ')
+    .replace(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|imax|hdr|dv|h264|h265|flac|lossless|pdf|epub|iso|repack|patch|crack|desktop|pro|edition|amd64|x64|x86)\b/gi, ' ')
     .replace(/\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|season\s*\d+|episode\s*\d+|ep\s*\d+|s\d{1,2})\b/gi, ' ')
     .replace(/\b(?:complete\s+series|all\s+seasons|complete\s+season|complete|batch)\b/gi, ' ')
     .replace(/\b(?:with\s+subtitles?|with\s+subs?|subtitles?|subs?|dual\s+audio)\b/gi, ' ')

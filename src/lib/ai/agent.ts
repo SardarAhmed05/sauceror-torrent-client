@@ -49,7 +49,8 @@ export function normalizeTitleForMatching(title: string): string {
     .replace(/\bpart\s+(?:one|1)\b/gi, '1')
     .replace(/\bpart\s+(?:three|3)\b/gi, '3')
     .replace(/\bchapter\s+(\d+)\b/gi, '$1')
-    .replace(/\b(desktop|server|workstation|enterprise|lts)\b/gi, ' ')
+    .replace(/\b(desktop|server|workstation|enterprise|lts|pro|home|edition)\b/gi, ' ')
+    .replace(/\bv(\d+)\b/gi, '$1')
     .replace(/\bv\b/gi, '5')
     .replace(/\biv\b/gi, '4')
     .replace(/\bvi\b/gi, '6')
@@ -105,7 +106,7 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string, alter
         if (!remainder) return true;
 
         const firstRemainderWord = remainder.split(/\s+/)[0];
-        const isMetadataWord = /^(?:\d{4}|s\d{1,2}(?:e\d{1,2})?|season|seasons|episode|ep\d*|1080p|720p|2160p|4k|bluray|web|brrip|dvdrip|x264|x265|hevc|md|complete|batch|remux|h264|h265|repack|pilot|pc|game|games|iso|desktop|amd64|x64|x86|linux|windows|reloaded|fitgirl|dodi|elamigos|flt|rune|codex|skidrow|multi\d*|update|edition|v\d+.*|gta|dubbed|subbed|special)$/i.test(firstRemainderWord);
+        const isMetadataWord = /^(?:\d+|v\d+.*|\d+h\d+|version|ver|build|lts|final|release|s\d{1,2}(?:e\d{1,2})?|season|seasons|episode|ep\d*|1080p|720p|2160p|4k|bluray|web|brrip|dvdrip|x264|x265|hevc|md|complete|batch|remux|h264|h265|repack|pilot|pc|game|games|iso|desktop|amd64|x64|x86|linux|windows|reloaded|fitgirl|dodi|elamigos|flt|rune|codex|skidrow|multi\d*|update|edition|gta|dubbed|subbed|special)$/i.test(firstRemainderWord);
         
         if (isMetadataWord) {
           return true;
