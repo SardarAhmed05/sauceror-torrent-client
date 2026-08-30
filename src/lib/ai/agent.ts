@@ -15,45 +15,64 @@ export interface AgentRunResult {
 }
 
 /**
+ * Normalize title strings, expanding common acronyms and roman numerals for accurate matching
+ */
+export function normalizeTitleForMatching(title: string): string {
+  return (title || '')
+    .toLowerCase()
+    .replace(/['":]/g, '')
+    .replace(/[._-]/g, ' ')
+    .replace(/\bgrand theft auto\b/gi, 'gta')
+    .replace(/\bcall of duty\b/gi, 'cod')
+    .replace(/\bred dead redemption\b/gi, 'rdr')
+    .replace(/\bcounter strike\b/gi, 'cs')
+    .replace(/\bv\b/gi, '5')
+    .replace(/\biv\b/gi, '4')
+    .replace(/\bvi\b/gi, '6')
+    .replace(/\biii\b/gi, '3')
+    .replace(/\bii\b/gi, '2')
+    .replace(/\bi\b/gi, '1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Strict check to ensure the torrent is for the actual requested title
  */
 export function isStrictTitleMatch(itemTitle: string, targetTitle: string): boolean {
   if (!targetTitle || targetTitle.trim().length === 0) return true;
 
-  const cleanItem = itemTitle.toLowerCase().replace(/['":]/g, '').replace(/[._-]/g, ' ').trim();
-  const cleanTarget = targetTitle.toLowerCase().replace(/['":]/g, '').replace(/[._-]/g, ' ').trim();
+  const normItem = normalizeTitleForMatching(itemTitle);
+  const normTarget = normalizeTitleForMatching(targetTitle);
 
-  if (cleanItem.startsWith(cleanTarget)) {
-    const nextChar = cleanItem[cleanTarget.length];
-    if (!nextChar || /\s|\d|\(|\[/.test(nextChar)) {
+  if (normItem.startsWith(normTarget)) {
+    const nextChar = normItem[normTarget.length];
+    if (!nextChar || /\s|\d|\(|\[|\//.test(nextChar)) {
       return true;
     }
   }
 
-  const targetWords = cleanTarget.split(/\s+/).filter(w => w.length > 1);
+  const targetWords = normTarget.split(/\s+/).filter(w => w.length > 0);
   if (targetWords.length === 0) return true;
 
-  const qualitySplit = cleanItem.split(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|h264|h265)\b/i);
+  // Split release groups and qualities
+  const qualitySplit = normItem.split(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|h264|h265|repack|fitgirl|dodi|elamigos|reloaded)\b/i);
   const mainTitlePart = qualitySplit[0].trim();
-  const mainWords = mainTitlePart.split(/\s+/);
 
-  if (targetWords.length === 1) {
-    if (mainWords[0] === targetWords[0] || (mainWords.length > 1 && mainWords[1] === targetWords[0] && ['the', 'a', 'an'].includes(mainWords[0]))) {
-      return true;
-    }
-    return false;
+  // If target has specific number (e.g. gta 5), ensure number is present
+  const targetNumbers = targetWords.filter(w => /^\d+$/.test(w));
+  if (targetNumbers.length > 0) {
+    const hasAllNumbers = targetNumbers.every(n => new RegExp(`\\b${n}\\b`).test(normItem));
+    if (!hasAllNumbers) return false;
   }
 
-  const targetPhrase = targetWords.join(' ');
-  if (mainTitlePart.startsWith(targetPhrase) || mainTitlePart.includes(targetPhrase)) {
-    const idx = mainTitlePart.indexOf(targetPhrase);
-    const prefix = mainTitlePart.substring(0, idx).trim();
-    if (!prefix || ['the', 'a', 'an'].includes(prefix)) {
-      return true;
-    }
-  }
+  // Check if all non-stop words of target are present in main title part
+  const nonStopTargetWords = targetWords.filter(w => !['the', 'a', 'an', 'of', 'in', 'and'].includes(w));
+  const hasAllTargetWords = nonStopTargetWords.every(w => {
+    return new RegExp(`\\b${w}\\b`, 'i').test(normItem) || mainTitlePart.includes(w);
+  });
 
-  return false;
+  return hasAllTargetWords;
 }
 
 /**
@@ -73,18 +92,21 @@ export function scoreRelease(
   // 1. Seed health (logarithmic scale)
   score += Math.log10(Math.max(1, seeds)) * 30;
 
-  // 2. High reputation gold-standard release groups
+  // 2. High reputation gold-standard release groups (Movies/TV & Games)
   if (/\b(?:yify|yts)\b/i.test(title)) score += 60;
+  else if (/\b(?:fitgirl|dodi|elamigos|reloaded|flt|empress|skidrow|codex|rune)\b/i.test(title)) score += 55;
   else if (/\b(?:galaxyrg|rarbg|psa|ethel|flux|killers|qxr|tigole)\b/i.test(title)) score += 50;
 
-  // 3. Quality source format (BluRay / WEB-DL / HDTV)
+  // 3. Quality source format (BluRay / WEB-DL / Repack / ISO)
   if (/\b(?:bluray|brrip|bdrip|remux)\b/i.test(title)) score += 30;
+  else if (/\b(?:repack|fitgirl|dodi)\b/i.test(title)) score += 30;
   else if (/\b(?:web-?dl|webrip|amzn|hmax|dsnp|nf)\b/i.test(title)) score += 25;
-  else if (/\bhdtv\b/i.test(title)) score += 15;
+  else if (/\b(?:iso|x64|installer)\b/i.test(title)) score += 20;
 
-  // 4. Universal Codec compatibility (x264 is #1 compatible on all players/TVs)
+  // 4. Codec & Platform compatibility
   if (/\b(?:x264|h264|avc)\b/i.test(title)) score += 25;
   else if (/\b(?:x265|hevc|10bit)\b/i.test(title)) score += 15;
+  if (/\b(?:pc|windows)\b/i.test(title)) score += 15;
 
   // Heavy penalty for obscure codecs (AV1) or obscure personal rips (DKong, Soup) unless explicitly requested
   if (/\bav1\b/i.test(title) && !query.includes('av1')) {
@@ -97,14 +119,13 @@ export function scoreRelease(
   // 5. Size constraint weighting
   if (maxSizeBytes && maxSizeBytes > 0) {
     if (rawSize <= maxSizeBytes) {
-      score += 40; // Bonus for strictly within size limit
+      score += 40;
     } else {
-      // Allow slight tolerance (up to 20% over limit) for gold-standard releases like YIFY (2.26GB vs 2.0GB)
       const ratio = rawSize / maxSizeBytes;
       if (ratio <= 1.20) {
-        score += 15; // Small penalty for close match
+        score += 15;
       } else {
-        score -= (ratio - 1) * 60; // Strong penalty for oversized files
+        score -= (ratio - 1) * 60;
       }
     }
   }
@@ -136,11 +157,11 @@ export async function runAgent(
   // Step 1: AI Intent & Query Analysis
   const analysis = await analyzeQueryWithGemini(userInput, options?.apiKeyOverride);
   thoughts.push(
-    `Target: "${analysis.coreTitle}" (Query: "${analysis.cleanQuery}", Quality: ${analysis.qualityPreference}${
-      analysis.maxSizeBytes ? `, MaxSize: ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)}GB` : ''
-    }${analysis.seasonEpisode?.tag ? `, Episode: ${analysis.seasonEpisode.tag}` : ''}${
-      analysis.requiresSubtitles ? ', Subtitles: Yes' : ''
-    })`
+    `Target: "${analysis.coreTitle}" (Query: "${analysis.cleanQuery}", Category: ${analysis.category}${
+      analysis.qualityPreference !== 'any' ? `, Quality: ${analysis.qualityPreference}` : ''
+    }${analysis.maxSizeBytes ? `, MaxSize: ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)}GB` : ''}${
+      analysis.seasonEpisode?.tag ? `, Episode: ${analysis.seasonEpisode.tag}` : ''
+    }${analysis.requiresSubtitles ? ', Subtitles: Yes' : ''})`
   );
 
   // Step 2: Multi-Tier Search on ext.to & swarms
@@ -162,6 +183,11 @@ export async function runAgent(
       candidateQueries.push(`${analysis.coreTitle} ${analysis.qualityPreference}`);
     }
     candidateQueries.push(analysis.coreTitle);
+    if (userInput.toLowerCase().includes('gta')) {
+      candidateQueries.push('Grand Theft Auto V');
+      candidateQueries.push('GTA V');
+      candidateQueries.push('GTA 5');
+    }
   }
 
   const uniqueCandidateQueries = Array.from(new Set(candidateQueries.filter(q => q.length > 1)));
