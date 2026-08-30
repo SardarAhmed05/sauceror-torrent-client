@@ -261,6 +261,8 @@ export function generateSearchQueries(
       queries.push(`${base} Seasons`);
     } else {
       queries.push(`${base} Complete Series`);
+      queries.push(`${base} Season 1 Complete`);
+      queries.push(`${base} Season 1`);
       queries.push(`${base} All Seasons`);
       queries.push(`${base} Complete`);
       queries.push(base);
@@ -315,7 +317,19 @@ export function heuristicRefineQuery(input: string): QueryAnalysis {
   let category = 'All';
   let intent: QueryIntent = 'movie';
 
-  if (seasonEpisode?.isSeasonPack || seasonEpisode?.isCompleteSeries) {
+  if (
+    lower.includes('game of thrones') ||
+    lower.includes('squid game') ||
+    lower.includes('the wire') ||
+    lower.includes('breaking bad') ||
+    lower.includes('the sopranos') ||
+    lower.includes('house of the dragon') ||
+    lower.includes('house m.d.') ||
+    lower.includes('stranger things') ||
+    lower.includes('peaky blinders') ||
+    seasonEpisode?.isSeasonPack ||
+    seasonEpisode?.isCompleteSeries
+  ) {
     category = 'TV';
     intent = 'tv_season_pack';
   } else if (seasonEpisode?.episode !== undefined) {
@@ -327,7 +341,7 @@ export function heuristicRefineQuery(input: string): QueryAnalysis {
   } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable|iso|os|desktop|x64|amd64)\b/.test(lower)) {
     category = 'Apps';
     intent = 'software';
-  } else if (/\b(game|repack|pc game|fitgirl|dodi|crack|patch|mod|gta)\b/.test(lower)) {
+  } else if (/\b(pc game|fitgirl|dodi|crack|patch|mod|gta|steam|repack)\b/.test(lower) || (/\bgame\b/.test(lower) && !lower.includes('game of thrones') && !lower.includes('squid game'))) {
     category = 'Games';
     intent = 'game';
   } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
