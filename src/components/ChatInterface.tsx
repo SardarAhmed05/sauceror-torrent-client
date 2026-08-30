@@ -14,7 +14,9 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
-  Search
+  Search,
+  Github,
+  ExternalLink
 } from 'lucide-react';
 import { TorrentItem, AgentMessage } from '@/lib/scraper/types';
 import { TorrentCard } from './TorrentCard';
@@ -383,9 +385,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </button>
         </form>
 
-        <div className="flex items-center justify-between text-[10px] text-gray-500 px-2 pt-1.5">
-          <span>Mirror: {activeMirror.replace('https://', '')}</span>
-          <span>Verified Magnet Links</span>
+        <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-500 px-2 pt-2 gap-2">
+          <div className="flex items-center gap-3">
+            <span>Mirror: {activeMirror.replace('https://', '')}</span>
+            <span className="text-gray-700 hidden sm:inline">•</span>
+            <span className="text-emerald-400 font-medium hidden sm:flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Verified Magnet Engine
+            </span>
+          </div>
+
+          <a
+            href="https://github.com/SardarAhmed05"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#141721] hover:bg-[#1e2330] text-gray-300 hover:text-amber-400 border border-[#232838] transition-all font-medium group"
+          >
+            <Github className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-400" />
+            <span>Built by <strong className="text-gray-200 group-hover:text-amber-400 font-bold">Sardar Ahmed</strong></span>
+            <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-amber-400" />
+          </a>
         </div>
       </div>
     </div>

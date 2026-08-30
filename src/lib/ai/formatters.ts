@@ -54,7 +54,8 @@ export function formatWhatsAppMessage(
   }
 
   msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `🤖 _Powered by Sauceror on Vercel_`;
+  msg += `🤖 _Sauceror AI • Built by Sardar Ahmed_\n`;
+  msg += `🌐 _github.com/SardarAhmed05/sauceror-torrent-client_`;
 
   return msg;
 }

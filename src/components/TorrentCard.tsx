@@ -22,7 +22,7 @@ import {
   Sparkles,
   Trophy,
   Flame,
-  Radio
+  Zap
 } from 'lucide-react';
 import { TorrentItem } from '@/lib/scraper/types';
 
@@ -58,7 +58,6 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
   const seedCount = item.seeders || 0;
   const leechCount = item.leechers || 0;
 
-  // Extract clean release group / tracker / resolution tags
   const extractTags = (title: string) => {
     const tags: string[] = [];
     if (/\b(?:2160p|4k|uhd)\b/i.test(title)) tags.push('4K UHD');
@@ -71,7 +70,6 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
 
     if (/\b(?:x265|hevc|10bit)\b/i.test(title)) tags.push('HEVC x265');
     else if (/\b(?:x264|h264|avc)\b/i.test(title)) tags.push('x264');
-    else if (/\bav1\b/i.test(title)) tags.push('AV1');
 
     if (/\b(?:yify|yts)\b/i.test(title)) tags.push('YTS');
     else if (/\bgalaxyrg\b/i.test(title)) tags.push('GalaxyRG');
@@ -204,37 +202,37 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
           </div>
         </div>
 
-        {/* Hero Actions Toolbar */}
+        {/* Hero Actions Toolbar - Main Download / uTorrent Button is Primary! */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#2b354d]">
-          {/* Big Magnet Button */}
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleCopyMagnet}
-              disabled={loadingMagnet}
-              className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all shadow-lg active:scale-95 ${
-                copied
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                  : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/25'
-              }`}
-            >
-              {loadingMagnet ? (
-                <Loader2 className="w-4 h-4 animate-spin text-black" />
-              ) : copied ? (
-                <Check className="w-4 h-4 stroke-[3]" />
-              ) : (
-                <Magnet className="w-4 h-4 fill-black" />
-              )}
-              <span>{loadingMagnet ? 'Resolving Token...' : copied ? 'Magnet Link Copied!' : 'Copy Magnet Link'}</span>
-            </button>
-
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {/* PRIMARY BIG BUTTON: Open in uTorrent / qBittorrent */}
             <button
               onClick={handleOpenClient}
               disabled={loadingMagnet}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#1e2330] hover:bg-[#282e3f] text-gray-200 hover:text-white border border-[#2b3245] transition-all text-xs font-semibold"
-              title="Open directly in your torrent client"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer"
+              title="Launch directly in uTorrent, qBittorrent, or default torrent app"
             >
-              <Download className="w-4 h-4 text-gray-300" />
-              <span>Open in App</span>
+              {loadingMagnet ? (
+                <Loader2 className="w-4 h-4 animate-spin text-black" />
+              ) : (
+                <Zap className="w-4 h-4 fill-black text-black" />
+              )}
+              <span>{loadingMagnet ? 'Fetching Link...' : 'Open in Torrent App (uTorrent / qBit)'}</span>
+            </button>
+
+            {/* SECONDARY BUTTON: Copy Magnet Link */}
+            <button
+              onClick={handleCopyMagnet}
+              disabled={loadingMagnet}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all border border-[#2b3245] ${
+                copied
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                  : 'bg-[#1e2330] hover:bg-[#282e3f] text-gray-200 hover:text-white'
+              }`}
+              title="Copy raw magnet URI to clipboard"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Magnet className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Magnet Copied!' : 'Copy Magnet Link'}</span>
             </button>
           </div>
 
@@ -341,13 +339,25 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Primary Open Client Button */}
+            <button
+              onClick={handleOpenClient}
+              disabled={loadingMagnet}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-sm active:scale-95"
+              title="Open directly in uTorrent / qBittorrent"
+            >
+              <Zap className="w-3.5 h-3.5 fill-black" />
+              <span>Open in Client</span>
+            </button>
+
+            {/* Secondary Magnet Button */}
             <button
               onClick={handleCopyMagnet}
               disabled={loadingMagnet}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border border-[#2b3245] ${
                 copied
                   ? 'bg-emerald-600 text-white'
-                  : 'bg-[#232838] hover:bg-amber-500 hover:text-black text-gray-200'
+                  : 'bg-[#1e2330] hover:bg-[#282e3f] text-gray-300 hover:text-white'
               }`}
               title="Copy Magnet Link"
             >
@@ -358,16 +368,7 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
               ) : (
                 <Magnet className="w-3.5 h-3.5" />
               )}
-              <span>{loadingMagnet ? 'Resolving...' : copied ? 'Copied' : 'Magnet'}</span>
-            </button>
-
-            <button
-              onClick={handleOpenClient}
-              disabled={loadingMagnet}
-              className="p-1.5 rounded-lg bg-[#1e2330] hover:bg-[#282e3f] text-gray-300 hover:text-white border border-[#2b3245] transition-all text-xs"
-              title="Open in Torrent Client"
-            >
-              <Download className="w-3.5 h-3.5" />
+              <span>{loadingMagnet ? '...' : copied ? 'Copied' : 'Magnet'}</span>
             </button>
 
             <a
