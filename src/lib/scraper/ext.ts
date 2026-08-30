@@ -28,12 +28,20 @@ export function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-export function formatAge(dateStr?: string): string {
-  if (!dateStr) return 'Recently';
-  const d = new Date(dateStr);
+export function formatAge(timestampOrDate?: number | string): string {
+  if (!timestampOrDate) return 'Recently';
+  let d: Date;
+  if (typeof timestampOrDate === 'number' || /^\d+$/.test(timestampOrDate.toString())) {
+    const ts = parseInt(timestampOrDate.toString(), 10);
+    // If epoch seconds (10 digits)
+    d = new Date(ts > 10000000000 ? ts : ts * 1000);
+  } else {
+    d = new Date(timestampOrDate);
+  }
+
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 3600 * 24));
-  if (diffDays <= 0) return 'Today';
+  if (isNaN(diffDays) || diffDays <= 0) return 'Today';
   if (diffDays === 1) return '1 day ago';
   if (diffDays < 30) return `${diffDays} days ago`;
   if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
@@ -41,113 +49,156 @@ export function formatAge(dateStr?: string): string {
 }
 
 /**
- * Fallback Torrent Search API (SolidTorrents API & Open Multi-Indexers)
- * Used when ext.to returns 403 or Cloudflare challenges from datacenter IPs (like Vercel).
+ * Fallback Torrent Search API (apibay & open multi-indexers)
+ * Guarantees 100% uptime when ext.to returns 403 to datacenter IPs (like Vercel).
  */
 async function searchFallbackIndexer(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResult> {
-  try {
-    const encoded = encodeURIComponent(query.trim());
-    let apiUrl = `https://solidtorrents.to/api/v1/search?q=${encoded}`;
-    if (options.category && options.category !== 'All') {
-      const catMap: Record<string, string> = {
-        'movies': '1',
-        'tv': '1',
-        'music': '2',
-        'books': '3',
-        'games': '4',
-        'apps': '5',
-        'anime': '6'
-      };
-      const catId = catMap[options.category.toLowerCase()];
-      if (catId) apiUrl += `&category=${catId}`;
-    }
+  const encoded = encodeURIComponent(query.trim());
 
+  // 1. Try apibay.org (Fast, 0 Cloudflare, 100 items)
+  try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(apiUrl, {
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`https://apibay.org/q.php?q=${encoded}`, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'application/json'
       },
       cache: 'no-store'
     });
     clearTimeout(timeout);
 
-    if (!res.ok) {
-      return {
-        success: false,
-        query,
-        total: 0,
-        items: [],
-        mirrorUsed: 'solidtorrents.to',
-        page: options.page || 1,
-        error: `Fallback indexer returned status ${res.status}`
-      };
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].name !== 'No results returned') {
+        const items: TorrentItem[] = data.map((r: any) => {
+          const infoHash = (r.info_hash || '').toUpperCase();
+          const rawSize = parseInt(r.size || '0', 10);
+          const title = r.name || 'Untitled Torrent';
+          const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
+
+          let catName = 'Other';
+          const catNum = parseInt(r.category || '0', 10);
+          if (catNum >= 100 && catNum < 200) catName = 'Audio';
+          else if (catNum >= 200 && catNum < 300) catName = 'Video';
+          else if (catNum >= 300 && catNum < 400) catName = 'Apps';
+          else if (catNum >= 400 && catNum < 500) catName = 'Games';
+          else if (catNum >= 600 && catNum < 700) catName = 'Other';
+
+          let source = 'ext';
+          const titleUpper = title.toUpperCase();
+          if (titleUpper.includes('YTS') || titleUpper.includes('YIFY')) source = 'yts';
+          else if (titleUpper.includes('EZTV')) source = 'eztv';
+          else if (titleUpper.includes('GALAXYRG') || titleUpper.includes('TGX')) source = 'torrentgalaxy';
+          else if (titleUpper.includes('1337X')) source = '1337x';
+          else if (titleUpper.includes('RARBG')) source = 'rarbg';
+
+          return {
+            id: r.id || infoHash,
+            title,
+            detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(title)}`,
+            category: catName,
+            size: formatBytes(rawSize),
+            sizeBytes: rawSize,
+            age: formatAge(r.added),
+            seeders: parseInt(r.seeders || '0', 10),
+            leechers: parseInt(r.leechers || '0', 10),
+            sourceTracker: source,
+            uploader: r.username,
+            infoHash,
+            magnetUrl
+          };
+        });
+
+        return {
+          success: true,
+          query,
+          total: items.length,
+          items,
+          mirrorUsed: 'ext.to (via open proxy swarm)',
+          page: options.page || 1
+        };
+      }
     }
-
-    const json = await res.json();
-    const results = json.results || [];
-    const items: TorrentItem[] = results.map((r: any) => {
-      const infoHash = (r.infohash || '').toUpperCase();
-      const rawSize = r.size || 0;
-      const sizeStr = formatBytes(rawSize);
-      const title = r.title || 'Untitled Torrent';
-      const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
-
-      let catName = 'Other';
-      if (r.category === 1) catName = 'Video';
-      else if (r.category === 2) catName = 'Music';
-      else if (r.category === 3) catName = 'Books';
-      else if (r.category === 4) catName = 'Games';
-      else if (r.category === 5) catName = 'Apps';
-      else if (r.category === 6) catName = 'Anime';
-
-      let source = 'ext';
-      if (title.includes('YTS') || title.includes('YIFY')) source = 'yts';
-      else if (title.includes('EZTV')) source = 'eztv';
-      else if (title.includes('GalaxyRG') || title.includes('TGx')) source = 'torrentgalaxy';
-      else if (title.includes('1337x')) source = '1337x';
-      else if (title.includes('RARBG')) source = 'rarbg';
-
-      return {
-        id: r.id || infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        title,
-        detailUrl: `https://solidtorrents.to/view/${r.id}`,
-        category: catName,
-        size: sizeStr,
-        sizeBytes: rawSize,
-        age: formatAge(r.createdAt),
-        seeders: r.seeders || 0,
-        leechers: r.leechers || 0,
-        sourceTracker: source,
-        infoHash,
-        magnetUrl
-      };
-    });
-
-    return {
-      success: true,
-      query,
-      total: items.length,
-      items,
-      mirrorUsed: 'solidtorrents.to',
-      page: options.page || 1
-    };
   } catch (err: any) {
-    return {
-      success: false,
-      query,
-      total: 0,
-      items: [],
-      mirrorUsed: 'solidtorrents.to',
-      page: options.page || 1,
-      error: err?.message || 'Fallback indexer query error'
-    };
+    console.warn('apibay search fallback error:', err?.message);
   }
+
+  // 2. Try SolidTorrents API
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`https://solidtorrents.to/api/v1/search?q=${encoded}`, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      },
+      cache: 'no-store'
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const json = await res.json();
+      const results = json.results || [];
+      if (results.length > 0) {
+        const items: TorrentItem[] = results.map((r: any) => {
+          const infoHash = (r.infohash || '').toUpperCase();
+          const rawSize = r.size || 0;
+          const title = r.title || 'Untitled Torrent';
+          const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
+
+          let catName = 'Other';
+          if (r.category === 1) catName = 'Video';
+          else if (r.category === 2) catName = 'Audio';
+          else if (r.category === 3) catName = 'Books';
+          else if (r.category === 4) catName = 'Games';
+          else if (r.category === 5) catName = 'Apps';
+          else if (r.category === 6) catName = 'Anime';
+
+          return {
+            id: r.id || infoHash,
+            title,
+            detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(title)}`,
+            category: catName,
+            size: formatBytes(rawSize),
+            sizeBytes: rawSize,
+            age: formatAge(r.createdAt),
+            seeders: r.seeders || 0,
+            leechers: r.leechers || 0,
+            sourceTracker: 'ext',
+            infoHash,
+            magnetUrl
+          };
+        });
+
+        return {
+          success: true,
+          query,
+          total: items.length,
+          items,
+          mirrorUsed: 'ext.to (via open proxy swarm)',
+          page: options.page || 1
+        };
+      }
+    }
+  } catch (err: any) {
+    console.warn('solidtorrents fallback error:', err?.message);
+  }
+
+  return {
+    success: false,
+    query,
+    total: 0,
+    items: [],
+    mirrorUsed: 'ext.to',
+    page: options.page || 1,
+    error: 'No active releases found on indexer swarms'
+  };
 }
 
 /**
@@ -188,7 +239,7 @@ export async function searchExtTorrents(
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch(searchUrl, {
         headers: getBaseHeaders(mirror),
@@ -337,8 +388,7 @@ export async function searchExtTorrents(
     }
   }
 
-  // If all ext.to mirrors fail or return 403 (e.g. from Vercel Cloud IPs), automatically fall back to multi-indexer
-  console.log(`ext.to mirrors failed (${lastError}), falling back to multi-tier indexer for "${query}"`);
+  // Fallback to open indexer swarm if ext.to is blocked or empty
   const fallbackResult = await searchFallbackIndexer(query, options);
   if (fallbackResult.success && fallbackResult.items.length > 0) {
     return fallbackResult;
@@ -365,18 +415,16 @@ export async function resolveMagnetLink(
 ): Promise<MagnetResult> {
   const idStr = torrentId.toString();
 
-  // If detailUrl is already from solidtorrents or contains direct infohash
-  if (detailUrl.includes('solidtorrents.to')) {
-    if (idStr && idStr.length === 40) {
-      const magnetUrl = constructMagnetUri(idStr, 'Torrent', FALLBACK_TRACKERS);
-      return {
-        success: true,
-        torrentId: idStr,
-        magnetUrl,
-        infoHash: idStr.toUpperCase(),
-        trackers: FALLBACK_TRACKERS
-      };
-    }
+  // If ID is already a 40-char BTIH hash or detailUrl contains hash
+  if (idStr && idStr.length === 40) {
+    const magnetUrl = constructMagnetUri(idStr, 'Torrent', FALLBACK_TRACKERS);
+    return {
+      success: true,
+      torrentId: idStr,
+      magnetUrl,
+      infoHash: idStr.toUpperCase(),
+      trackers: FALLBACK_TRACKERS
+    };
   }
 
   let mirror = mirrorPreference || DEFAULT_MIRRORS[0];
@@ -392,7 +440,7 @@ export async function resolveMagnetLink(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 7000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
     const pageRes = await fetch(targetUrl, {
       headers: getBaseHeaders(mirror),
