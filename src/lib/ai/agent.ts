@@ -42,6 +42,11 @@ export function normalizeTitleForMatching(title: string): string {
     .replace(/\bcall of duty\b/gi, 'cod')
     .replace(/\bred dead redemption\b/gi, 'rdr')
     .replace(/\bcounter strike\b/gi, 'cs')
+    .replace(/\bshingeki no kyojin\b/gi, 'attack on titan')
+    .replace(/\bpart\s+(?:two|2)\b/gi, '2')
+    .replace(/\bpart\s+(?:one|1)\b/gi, '1')
+    .replace(/\bpart\s+(?:three|3)\b/gi, '3')
+    .replace(/\bchapter\s+(\d+)\b/gi, '$1')
     .replace(/\bv\b/gi, '5')
     .replace(/\biv\b/gi, '4')
     .replace(/\bvi\b/gi, '6')
@@ -70,6 +75,10 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string, alter
     extraTargets.push('dr house', 'doctor house', 'house md');
   } else if (targetTitle.toLowerCase() === 'psycho') {
     extraTargets.push('mob psycho', 'mob psycho 100', 'psycho pass');
+  } else if (targetTitle.toLowerCase().includes('attack on titan') || targetTitle.toLowerCase().includes('shingeki')) {
+    extraTargets.push('attack on titan', 'shingeki no kyojin', 'aot');
+  } else if (targetTitle.toLowerCase().includes('dune')) {
+    extraTargets.push('dune 2', 'dune part two', 'dune part 2', 'dune 1', 'dune part one');
   }
 
   const targets = Array.from(new Set([targetTitle, ...(alternateTitles || []), ...extraTargets]));

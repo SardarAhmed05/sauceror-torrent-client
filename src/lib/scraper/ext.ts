@@ -51,94 +51,101 @@ export function formatAge(timestampOrDate?: number | string): string {
  * Universal Swarm Indexer for Games, Software, Books, Music, Anime, and General Torrents
  */
 async function searchUniversalSwarm(query: string, options: SearchOptions = {}): Promise<SearchResult> {
-  const encoded = encodeURIComponent(query.trim());
   const items: TorrentItem[] = [];
+  const cleanQ = query
+    .replace(/\b(?:pc|mac|linux|windows|desktop|iso|pro|edition|amd64|x64|x86)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const queriesToTry = Array.from(new Set([query.trim(), cleanQ].filter(q => q && q.length > 1)));
 
-  // 1. SolidTorrents Search API (Excellent for PC Games, Repacks, Software, Movies, Books)
-  try {
-    const res = await fetch(`https://solidtorrents.to/api/v1/search?q=${encoded}&sort=seeders`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      cache: 'no-store'
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.results && Array.isArray(data.results)) {
-        data.results.forEach((r: any) => {
-          const infoHash = (r.infoHash || '').toUpperCase();
-          const title = r.title || 'Torrent';
-          const sizeBytes = r.size || 0;
-          const sizeStr = formatBytes(sizeBytes);
-          const magnetUrl = r.magnet || (infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined);
+  for (const q of queriesToTry) {
+    const encoded = encodeURIComponent(q);
 
-          let cat = r.category || 'Other';
-          const sub = typeof r.subCategory === 'string' ? r.subCategory.toLowerCase() : '';
-          const titleLower = title.toLowerCase();
-          if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi') || sub.includes('game')) {
-            cat = 'Games';
-          } else if (titleLower.includes('iso') || titleLower.includes('setup') || titleLower.includes('x64') || titleLower.includes('installer') || titleLower.includes('ubuntu') || sub.includes('app') || sub.includes('software')) {
-            cat = 'Apps';
-          }
+    // 1. SolidTorrents Search API (Excellent for PC Games, Repacks, Software, Movies, Books)
+    try {
+      const res = await fetch(`https://solidtorrents.to/api/v1/search?q=${encoded}&sort=seeders`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && Array.isArray(data.results)) {
+          data.results.forEach((r: any) => {
+            const infoHash = (r.infoHash || '').toUpperCase();
+            if (infoHash && items.some(it => it.infoHash === infoHash)) return;
+            const title = r.title || 'Torrent';
+            const sizeBytes = r.size || 0;
+            const sizeStr = formatBytes(sizeBytes);
+            const magnetUrl = r.magnet || (infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined);
 
-          const cleanWords = title.replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf|\.rar|\.zip/gi, '').replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
+            let cat = r.category || 'Other';
+            const sub = typeof r.subCategory === 'string' ? r.subCategory.toLowerCase() : '';
+            const titleLower = title.toLowerCase();
+            if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi') || sub.includes('game')) {
+              cat = 'Games';
+            } else if (titleLower.includes('iso') || titleLower.includes('setup') || titleLower.includes('x64') || titleLower.includes('installer') || titleLower.includes('ubuntu') || sub.includes('app') || sub.includes('software')) {
+              cat = 'Apps';
+            }
 
-          items.push({
-            id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            title,
-            detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanWords)}`,
-            category: cat,
-            subcategory: r.subCategory,
-            size: sizeStr,
-            sizeBytes,
-            age: 'Verified Swarm',
-            seeders: r.swarm?.seeders || r.seeders || 10,
-            leechers: r.swarm?.leechers || r.leechers || 0,
-            sourceTracker: 'solidtorrents',
-            infoHash,
-            magnetUrl
+            const cleanWords = title.replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf|\.rar|\.zip/gi, '').replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+            items.push({
+              id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              title,
+              detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanWords)}`,
+              category: cat,
+              subcategory: r.subCategory,
+              size: sizeStr,
+              sizeBytes,
+              age: 'Verified Swarm',
+              seeders: r.swarm?.seeders || r.seeders || 10,
+              leechers: r.swarm?.leechers || r.leechers || 0,
+              sourceTracker: 'solidtorrents',
+              infoHash,
+              magnetUrl
+            });
           });
-        });
+        }
       }
+    } catch (e: any) {
+      console.warn('SolidTorrents swarm error:', e?.message);
     }
-  } catch (e: any) {
-    console.warn('SolidTorrents swarm error:', e?.message);
-  }
 
-  // 2. Apibay Open Indexer (All Categories: Games, Applications, Audio, Video, Books)
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`https://apibay.org/q.php?q=${encoded}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: controller.signal,
-      cache: 'no-store'
-    });
-    clearTimeout(timeout);
+    // 2. Apibay Open Indexer (All Categories: Games, Applications, Audio, Video, Books)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`https://apibay.org/q.php?q=${encoded}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: controller.signal,
+        cache: 'no-store'
+      });
+      clearTimeout(timeout);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0 && data[0].name !== 'No results returned') {
-        data.forEach((entry: any) => {
-          const infoHash = (entry.info_hash || '').toUpperCase();
-          const title = entry.name || 'Torrent';
-          const sizeBytes = parseInt(entry.size, 10) || 0;
-          const sizeStr = formatBytes(sizeBytes);
-          const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].name !== 'No results returned') {
+          data.forEach((entry: any) => {
+            const infoHash = (entry.info_hash || '').toUpperCase();
+            if (infoHash && items.some(it => it.infoHash === infoHash)) return;
+            const title = entry.name || 'Torrent';
+            const sizeBytes = parseInt(entry.size, 10) || 0;
+            const sizeStr = formatBytes(sizeBytes);
+            const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
 
-          // Categorization from PirateBay cat codes
-          let category = 'Other';
-          const catNum = parseInt(entry.category, 10);
-          if (catNum >= 400 && catNum < 500) category = 'Games';
-          else if (catNum >= 300 && catNum < 400) category = 'Apps';
-          else if (catNum >= 100 && catNum < 200) category = 'Music';
-          else if (catNum >= 200 && catNum < 300) category = 'Movies';
-          else if (catNum >= 600 && catNum < 700) category = 'Books';
+            let category = 'Other';
+            const catNum = parseInt(entry.category, 10);
+            if (catNum >= 400 && catNum < 500) category = 'Games';
+            else if (catNum >= 300 && catNum < 400) category = 'Apps';
+            else if (catNum >= 100 && catNum < 200) category = 'Music';
+            else if (catNum >= 200 && catNum < 300) category = 'Movies';
+            else if (catNum >= 600 && catNum < 700) category = 'Books';
 
-          const titleLower = title.toLowerCase();
-          if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi')) {
-            category = 'Games';
-          }
+            const titleLower = title.toLowerCase();
+            if (titleLower.includes('game') || titleLower.includes('repack') || titleLower.includes('fitgirl') || titleLower.includes('dodi')) {
+              category = 'Games';
+            }
 
-          if (!items.some(it => it.infoHash && it.infoHash === infoHash)) {
             const cleanWords = title.replace(/\.mkv|\.mp4|\.avi|\.iso|\.pdf|\.rar|\.zip/gi, '').replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
             items.push({
               id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -154,12 +161,14 @@ async function searchUniversalSwarm(query: string, options: SearchOptions = {}):
               infoHash,
               magnetUrl
             });
-          }
-        });
+          });
+        }
       }
+    } catch (e: any) {
+      console.warn('Apibay swarm error:', e?.message);
     }
-  } catch (e: any) {
-    console.warn('Apibay swarm error:', e?.message);
+
+    if (items.length > 0) break;
   }
 
   return {
@@ -284,13 +293,19 @@ async function searchTorrentioEngine(
     const streamData = await streamRes.json();
     const streams = streamData.streams || [];
 
+    const isExplicitSingleEp = /\b(?:s\d{1,2}e\d{1,2}|episode\s*\d+|ep\s*\d+)\b/i.test(query);
+
     const items: TorrentItem[] = streams.map((s: any) => {
       const infoHash = (s.infoHash || '').toUpperCase();
       const lines = (s.title || '').split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
       let cleanTorrentTitle = '';
-      if (lines.length > 0 && !lines[0].startsWith('👤') && !lines[0].startsWith('💾') && !lines[0].startsWith('⚙️')) {
+
+      if (isExplicitSingleEp && s.behaviorHints?.filename) {
+        cleanTorrentTitle = s.behaviorHints.filename;
+      } else if (lines.length > 0 && !lines[0].startsWith('👤') && !lines[0].startsWith('💾') && !lines[0].startsWith('⚙️')) {
         cleanTorrentTitle = lines[0];
       }
+
       if (!cleanTorrentTitle) {
         cleanTorrentTitle = s.behaviorHints?.filename || `${cleanTitle} Torrent`;
       }
