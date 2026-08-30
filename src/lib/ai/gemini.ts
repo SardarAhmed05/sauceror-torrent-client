@@ -283,6 +283,7 @@ export function generateSearchQueries(
   } else if (intent === 'game') {
     queries.push(base);
     queries.push(`${base} Repack`);
+    queries.push(`${base} FitGirl`);
     queries.push(`${base} PC`);
     if (base.toLowerCase().includes('gta') || base.toLowerCase().includes('grand theft auto')) {
       queries.push('Grand Theft Auto V');
@@ -292,6 +293,7 @@ export function generateSearchQueries(
   } else if (intent === 'software') {
     queries.push(base);
     queries.push(`${base} ISO`);
+    queries.push(`${base} desktop`);
     queries.push(`${base} x64`);
   } else {
     if (qualityPreference && qualityPreference !== 'any') {
@@ -338,12 +340,17 @@ export function heuristicRefineQuery(input: string): QueryAnalysis {
   } else if (/\b(s\d{1,2}e\d{1,2}|season\s*\d+|episode\s*\d+|series|tv show|seasons)\b/.test(lower)) {
     category = 'TV';
     intent = 'tv_season_pack';
-  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable|iso|os|desktop|x64|amd64)\b/.test(lower)) {
-    category = 'Apps';
-    intent = 'software';
-  } else if (/\b(pc game|fitgirl|dodi|crack|patch|mod|gta|steam|repack)\b/.test(lower) || (/\bgame\b/.test(lower) && !lower.includes('game of thrones') && !lower.includes('squid game'))) {
+  } else if (
+    /\b(pc game|fitgirl|dodi|crack|patch|mod|gta|steam|repack|switch|ps4|ps5|xbox)\b/.test(lower) ||
+    /\b(cyberpunk|elden ring|witcher|minecraft|fallout|skyrim|assassin|call of duty|grand theft auto|forza|fifa|nba|sims|diablo|baldur|zelda|pokemon|mario|god of war|ghost of tsushima|red dead|rdr|sekiro|dark souls)\b/.test(lower) ||
+    (/\bgame\b/.test(lower) && !lower.includes('game of thrones') && !lower.includes('squid game')) ||
+    /\bpc\b/.test(lower)
+  ) {
     category = 'Games';
     intent = 'game';
+  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|fedora|arch|kali|keygen|setup|portable|iso|os|desktop|x64|amd64|pro)\b/.test(lower)) {
+    category = 'Apps';
+    intent = 'software';
   } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
     category = 'Music';
     intent = 'music';

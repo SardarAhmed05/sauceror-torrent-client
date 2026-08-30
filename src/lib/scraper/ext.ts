@@ -378,6 +378,8 @@ export async function searchExtTorrents(
   const encodedQuery = encodeURIComponent(query.trim());
   const page = options.page || 1;
 
+  const directExtItems: TorrentItem[] = [];
+
   for (const mirror of mirrors) {
     try {
       let searchUrl = `${mirror}/browse/?q=${encodedQuery}`;
@@ -538,14 +540,7 @@ export async function searchExtTorrents(
       });
 
       if (items.length > 0) {
-        return {
-          success: true,
-          query,
-          total: items.length,
-          items,
-          mirrorUsed: mirror,
-          page
-        };
+        directExtItems.push(...items);
       }
     } catch (err: any) {
       lastError = err.message || 'Unknown network error';
@@ -559,31 +554,32 @@ export async function searchExtTorrents(
     options.category === 'Music' ||
     /\b(?:pc|repack|game|iso|desktop|linux|ubuntu|windows|setup|crack|apk|pdf|epub|flac|mp3|book)\b/i.test(query);
 
-  const isSingleEpisode = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|episode\s*\d+|ep\s*\d+)\b/i.test(query);
-
-  const isSeasonPack =
-    (/\b(?:season\s*\d+|s\d{1,2}\b|complete\s+series|all\s+seasons|complete\s+season|complete)\b/i.test(query) ||
-      options.category === 'TV') &&
-    !isSingleEpisode;
-
   // Run Swarms and/or Torrentio based on search type
   const searchPromises: Promise<SearchResult>[] = [];
 
-  // Universal Swarm (Always queried for all categories)
-  searchPromises.push(searchUniversalSwarm(query, options));
-
-  // Torrentio (Queried for all Movies and TV series/episodes)
+  // Torrentio (Queried FIRST for all Movies and TV series/episodes for maximum precision)
   if (!isNonVideo) {
     searchPromises.push(searchTorrentioEngine(query, options));
   }
 
+  // Universal Swarm (Queried for all categories)
+  searchPromises.push(searchUniversalSwarm(query, options));
+
   const results = await Promise.allSettled(searchPromises);
   const combinedItems: TorrentItem[] = [];
 
-  for (const res of results) {
-    if (res.status === 'fulfilled' && res.value.success && res.value.items.length > 0) {
-      combinedItems.push(...res.value.items);
-    }
+  // If video, prioritize Torrentio verified streams first
+  if (!isNonVideo && results[0]?.status === 'fulfilled' && results[0].value.success) {
+    combinedItems.push(...results[0].value.items);
+  }
+
+  // Add direct extto items
+  combinedItems.push(...directExtItems);
+
+  // Add swarm items
+  const swarmRes = isNonVideo ? results[0] : results[1];
+  if (swarmRes?.status === 'fulfilled' && swarmRes.value.success) {
+    combinedItems.push(...swarmRes.value.items);
   }
 
   if (combinedItems.length > 0) {
