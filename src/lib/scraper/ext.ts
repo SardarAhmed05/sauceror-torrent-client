@@ -173,7 +173,7 @@ async function searchTorrentioEngine(
       return {
         id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         title: cleanTorrentTitle,
-        detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(cleanTorrentTitle)}`,
+        detailUrl: infoHash ? `https://extto.com/browse/?q=${infoHash}` : `https://extto.com/browse/?q=${encodeURIComponent(cleanTorrentTitle)}`,
         category: isSeries ? 'TV' : 'Movies',
         size: sizeStr,
         sizeBytes,
