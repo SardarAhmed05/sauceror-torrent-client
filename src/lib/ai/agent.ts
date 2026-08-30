@@ -120,10 +120,10 @@ export function scoreRelease(
   if (intent === 'tv_season_pack') {
     const isSingleEp = /\b(?:s\d{1,2}e\d{1,2}|e\d{2}|episode\s*\d+|ep\s*\d+)\b/i.test(title);
     if (isSingleEp || rawSize < 1024 * 1024 * 1024) {
-      score -= 150; // Heavy penalty for single episode files when requesting a whole season
+      score -= 500; // Overwhelming penalty so single episode files never beat full season packs
     }
     if (/\b(?:complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|complete|batch|full\s+season|s01-s\d+|season\s*\d+-\d+)\b/i.test(title)) {
-      score += 120;
+      score += 150;
     }
     if (/\b(?:qxr|silence|vyndros|joy\s*\[utr\]|pophd|lostfilm|galaxytv|megusta|ethel|flux|psa|deejayahme)\b/i.test(title)) {
       score += 55;

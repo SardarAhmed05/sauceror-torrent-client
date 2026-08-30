@@ -543,9 +543,8 @@ export async function searchExtTorrents(
   // Universal Swarm (Always queried for all categories)
   searchPromises.push(searchUniversalSwarm(query, options));
 
-  // Torrentio (Queried for Movies and specific Single TV Episodes)
-  const isVideoForTorrentio = (options.category === 'Movies' || isSingleEpisode) && !isNonVideo && !isSeasonPack;
-  if (isVideoForTorrentio) {
+  // Torrentio (Queried for all Movies and TV series/episodes)
+  if (!isNonVideo) {
     searchPromises.push(searchTorrentioEngine(query, options));
   }
 
@@ -584,14 +583,6 @@ export async function searchExtTorrents(
       mirrorUsed: mirrors[0],
       page
     };
-  }
-
-  // Fallback to Torrentio if not already tried
-  if (!isVideoForTorrentio && !isNonVideo) {
-    const fallbackTorrentio = await searchTorrentioEngine(query, options);
-    if (fallbackTorrentio.success && fallbackTorrentio.items.length > 0) {
-      return fallbackTorrentio;
-    }
   }
 
   return {
