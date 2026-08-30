@@ -1,0 +1,275 @@
+import { searchExtTorrents, resolveMagnetLink } from '../scraper/ext';
+import { TorrentItem } from '../scraper/types';
+import { analyzeQueryWithGemini, synthesizeAgentResponse } from './gemini';
+
+export interface AgentRunResult {
+  query: string;
+  refinedQuery: string;
+  coreTitle: string;
+  category: string;
+  items: TorrentItem[];
+  topPick?: TorrentItem;
+  summary: string;
+  thoughts: string[];
+  mirrorUsed: string;
+}
+
+/**
+ * Strict check to ensure the torrent is for the actual requested title
+ */
+export function isStrictTitleMatch(itemTitle: string, targetTitle: string): boolean {
+  if (!targetTitle || targetTitle.trim().length === 0) return true;
+
+  const cleanItem = itemTitle.toLowerCase().replace(/['":]/g, '').replace(/[._-]/g, ' ').trim();
+  const cleanTarget = targetTitle.toLowerCase().replace(/['":]/g, '').replace(/[._-]/g, ' ').trim();
+
+  if (cleanItem.startsWith(cleanTarget)) {
+    const nextChar = cleanItem[cleanTarget.length];
+    if (!nextChar || /\s|\d|\(|\[/.test(nextChar)) {
+      return true;
+    }
+  }
+
+  const targetWords = cleanTarget.split(/\s+/).filter(w => w.length > 1);
+  if (targetWords.length === 0) return true;
+
+  const qualitySplit = cleanItem.split(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|h264|h265)\b/i);
+  const mainTitlePart = qualitySplit[0].trim();
+  const mainWords = mainTitlePart.split(/\s+/);
+
+  if (targetWords.length === 1) {
+    if (mainWords[0] === targetWords[0] || (mainWords.length > 1 && mainWords[1] === targetWords[0] && ['the', 'a', 'an'].includes(mainWords[0]))) {
+      return true;
+    }
+    return false;
+  }
+
+  const targetPhrase = targetWords.join(' ');
+  if (mainTitlePart.startsWith(targetPhrase) || mainTitlePart.includes(targetPhrase)) {
+    const idx = mainTitlePart.indexOf(targetPhrase);
+    const prefix = mainTitlePart.substring(0, idx).trim();
+    if (!prefix || ['the', 'a', 'an'].includes(prefix)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Execute the autonomous AI Agent pipeline for a user prompt
+ */
+export async function runAgent(
+  userInput: string,
+  options?: {
+    apiKeyOverride?: string;
+    mirrorOverride?: string;
+    autoResolveTopMagnet?: boolean;
+  }
+): Promise<AgentRunResult> {
+  const thoughts: string[] = [];
+  const autoResolve = options?.autoResolveTopMagnet !== false; // default true
+
+  thoughts.push(`Analyzing user request: "${userInput}"`);
+
+  // Step 1: AI Intent & Query Analysis
+  const analysis = await analyzeQueryWithGemini(userInput, options?.apiKeyOverride);
+  thoughts.push(
+    `Target: "${analysis.coreTitle}" (Query: "${analysis.cleanQuery}", Quality: ${analysis.qualityPreference}${
+      analysis.maxSizeBytes ? `, MaxSize: ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)}GB` : ''
+    }${analysis.seasonEpisode?.tag ? `, Episode: ${analysis.seasonEpisode.tag}` : ''}${
+      analysis.requiresSubtitles ? ', Subtitles: Yes' : ''
+    })`
+  );
+
+  // Step 2: Multi-Tier Search on ext.to
+  const candidateQueries: string[] = [];
+
+  if (analysis.seasonEpisode?.tag) {
+    const baseTitle = analysis.coreTitle;
+    if (analysis.qualityPreference !== 'any') {
+      candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag} ${analysis.qualityPreference}`);
+    }
+    candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag}`);
+    candidateQueries.push(`${baseTitle} Season ${analysis.seasonEpisode.season} Episode ${analysis.seasonEpisode.episode}`);
+    candidateQueries.push(`${baseTitle} E${analysis.seasonEpisode.episode?.toString().padStart(2, '0')}`);
+    candidateQueries.push(`${baseTitle} S${analysis.seasonEpisode.season?.toString().padStart(2, '0')}`);
+    candidateQueries.push(baseTitle);
+  } else {
+    candidateQueries.push(analysis.cleanQuery);
+    if (analysis.qualityPreference !== 'any') {
+      candidateQueries.push(`${analysis.coreTitle} ${analysis.qualityPreference}`);
+    }
+    candidateQueries.push(analysis.coreTitle);
+  }
+
+  const uniqueCandidateQueries = Array.from(new Set(candidateQueries.filter(q => q.length > 1)));
+
+  let rawItems: TorrentItem[] = [];
+  let mirrorUsed = options?.mirrorOverride || 'https://extto.com';
+  let successfulQuery = analysis.cleanQuery;
+
+  for (const q of uniqueCandidateQueries) {
+    thoughts.push(`Scraping ext.to for "${q}"...`);
+    const searchRes = await searchExtTorrents(q, {
+      category: analysis.category !== 'All' ? analysis.category : undefined,
+      mirror: options?.mirrorOverride,
+    });
+
+    if (searchRes.success && searchRes.items.length > 0) {
+      rawItems = searchRes.items;
+      mirrorUsed = searchRes.mirrorUsed;
+      successfulQuery = q;
+      thoughts.push(`Found ${rawItems.length} releases for "${q}" on mirror ${mirrorUsed}`);
+      break;
+    }
+  }
+
+  if (rawItems.length === 0 && analysis.coreTitle) {
+    thoughts.push(`Searching broad title "${analysis.coreTitle}"...`);
+    const fallbackRes = await searchExtTorrents(analysis.coreTitle, { mirror: options?.mirrorOverride });
+    if (fallbackRes.success && fallbackRes.items.length > 0) {
+      rawItems = fallbackRes.items;
+      mirrorUsed = fallbackRes.mirrorUsed;
+      successfulQuery = analysis.coreTitle;
+      thoughts.push(`Broad title search found ${rawItems.length} releases`);
+    }
+  }
+
+  // Step 3: Strict Title Relevance Filtering
+  let titleFilteredItems = rawItems.filter(it => isStrictTitleMatch(it.title, analysis.coreTitle));
+  if (titleFilteredItems.length > 0) {
+    thoughts.push(`Filtered to ${titleFilteredItems.length} verified releases for "${analysis.coreTitle}"`);
+  } else {
+    titleFilteredItems = rawItems;
+  }
+
+  let filteredItems = [...titleFilteredItems];
+  let filterNote = '';
+
+  // 3a. Filter by Season & Episode if requested
+  if (analysis.seasonEpisode) {
+    const { season, episode, tag } = analysis.seasonEpisode;
+    const epNum = episode?.toString() || '';
+    const epPadded = episode?.toString().padStart(2, '0') || '';
+    const sNum = season?.toString() || '';
+    const sPadded = season?.toString().padStart(2, '0') || '';
+
+    const matchingEpisode = filteredItems.filter(it => {
+      const titleLower = it.title.toLowerCase();
+      return (
+        (tag && titleLower.includes(tag.toLowerCase())) ||
+        titleLower.includes(`s${sPadded}e${epPadded}`) ||
+        titleLower.includes(`s${sNum}e${epPadded}`) ||
+        titleLower.includes(`e${epPadded}`) ||
+        (titleLower.includes(`season: ${sNum}`) && titleLower.includes(`episode`)) ||
+        titleLower.includes(`episode ${epNum}`) ||
+        titleLower.includes(`ep ${epNum}`) ||
+        titleLower.includes(`ep.${epNum}`)
+      );
+    });
+
+    if (matchingEpisode.length > 0) {
+      filteredItems = matchingEpisode;
+      thoughts.push(`Filtered to ${matchingEpisode.length} releases specifically for S${sPadded}E${epPadded}`);
+    } else {
+      filterNote = `Note: Episode ${episode} is not yet indexed separately. Showing available releases of "${analysis.coreTitle}".`;
+      thoughts.push(filterNote);
+    }
+  }
+
+  // 3b. Filter / Rank by Quality Preference if requested
+  if (analysis.qualityPreference !== 'any') {
+    const pref = analysis.qualityPreference.toLowerCase();
+    const matchingQuality = filteredItems.filter(it => it.title.toLowerCase().includes(pref));
+    if (matchingQuality.length > 0) {
+      filteredItems = matchingQuality;
+      thoughts.push(`Filtered to ${matchingQuality.length} releases in "${analysis.qualityPreference}"`);
+    }
+  }
+
+  // 3c. Boost Subtitles if requested
+  if (analysis.requiresSubtitles) {
+    const withSubs = filteredItems.filter(it => {
+      const lower = it.title.toLowerCase();
+      return lower.includes('sub') || lower.includes('esub') || lower.includes('subtitle') || lower.includes('multi');
+    });
+    if (withSubs.length > 0) {
+      const withoutSubs = filteredItems.filter(it => !withSubs.includes(it));
+      filteredItems = [...withSubs, ...withoutSubs];
+      thoughts.push(`Prioritized ${withSubs.length} releases with confirmed subtitles`);
+    }
+  }
+
+  // 3d. Filter by Size Constraints
+  if (analysis.maxSizeBytes) {
+    const maxBytes = analysis.maxSizeBytes;
+    const underLimit = filteredItems.filter(it => (it.sizeBytes || 0) <= maxBytes);
+
+    if (underLimit.length > 0) {
+      const otherReleases = filteredItems.filter(it => (it.sizeBytes || 0) > maxBytes);
+      filteredItems = [...underLimit, ...otherReleases];
+      thoughts.push(`Found ${underLimit.length} releases strictly under ${(maxBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`);
+    } else {
+      const minAvailable = filteredItems.reduce((min, it) => (it.sizeBytes || Infinity) < (min.sizeBytes || Infinity) ? it : min, filteredItems[0]);
+      const sizeMsg = `No release was under ${(maxBytes / (1024 * 1024 * 1024)).toFixed(1)} GB (smallest available is ${minAvailable?.size || 'larger'}).`;
+      filterNote = filterNote ? `${filterNote} ${sizeMsg}` : sizeMsg;
+      thoughts.push(sizeMsg);
+    }
+  }
+
+  // 3e. Sort: items matching strict size limit sorted by seeds, followed by other releases of same title
+  if (analysis.maxSizeBytes) {
+    const maxBytes = analysis.maxSizeBytes;
+    filteredItems.sort((a, b) => {
+      const aUnder = (a.sizeBytes || 0) <= maxBytes ? 1 : 0;
+      const bUnder = (b.sizeBytes || 0) <= maxBytes ? 1 : 0;
+      if (aUnder !== bUnder) return bUnder - aUnder;
+      return (b.seeders || 0) - (a.seeders || 0);
+    });
+  } else {
+    filteredItems.sort((a, b) => (b.seeders || 0) - (a.seeders || 0));
+  }
+
+  let topPick = filteredItems.length > 0 ? filteredItems[0] : (titleFilteredItems.length > 0 ? titleFilteredItems[0] : undefined);
+  const itemsToReturn = filteredItems.length > 0 ? filteredItems : titleFilteredItems;
+
+  if (topPick) {
+    thoughts.push(`Selected top pick: "${topPick.title}" (${topPick.size}, ${topPick.seeders} seeds)`);
+
+    // Step 4: Auto-resolve magnet link for top pick
+    if (autoResolve && topPick.id) {
+      thoughts.push(`Resolving HMAC magnet token for torrent ID ${topPick.id}...`);
+      const magnetRes = await resolveMagnetLink(topPick.id, topPick.detailUrl, mirrorUsed);
+      if (magnetRes.success && magnetRes.magnetUrl) {
+        topPick.magnetUrl = magnetRes.magnetUrl;
+        topPick.infoHash = magnetRes.infoHash;
+        thoughts.push(`Successfully resolved magnet URI with infohash: ${magnetRes.infoHash || 'OK'}`);
+      } else {
+        thoughts.push(`Magnet resolution note: ${magnetRes.error || 'Direct link pending'}`);
+      }
+    }
+  }
+
+  // Step 5: Synthesize AI Response
+  thoughts.push(`Generating final response...`);
+  const summary = await synthesizeAgentResponse(
+    userInput,
+    analysis,
+    itemsToReturn,
+    options?.apiKeyOverride,
+    filterNote
+  );
+
+  return {
+    query: userInput,
+    refinedQuery: successfulQuery,
+    coreTitle: analysis.coreTitle,
+    category: analysis.category,
+    items: itemsToReturn,
+    topPick,
+    summary,
+    thoughts,
+    mirrorUsed
+  };
+}

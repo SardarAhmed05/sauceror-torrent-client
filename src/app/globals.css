@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #0c0e14;
+  --bg-card: #141721;
+  --bg-card-hover: #1a1e2b;
+  --border-color: #232838;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: #e2e8f0;
+  min-height: 100vh;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  overflow-x: hidden;
+}
+
+/* Crisp Clean Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0c0e14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2b3245;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+
+/* ext.to Clean Card Style */
+.ext-card {
+  background-color: #141721;
+  border: 1px solid #232838;
+  transition: all 0.15s ease-in-out;
+}
+
+.ext-card:hover {
+  background-color: #181d2a;
+  border-color: #3b445c;
+}
+
+/* Clean Header Glass */
+.ext-header {
+  background: rgba(12, 14, 20, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #232838;
+}
+
+/* Amber Glowing Accent */
+.glow-amber {
+  box-shadow: 0 0 20px -5px rgba(245, 158, 11, 0.3);
+}
