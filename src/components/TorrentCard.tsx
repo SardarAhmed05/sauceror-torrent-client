@@ -205,22 +205,22 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
         {/* Hero Actions Toolbar - Main Download / uTorrent Button is Primary! */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#2b354d]">
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-            {/* PRIMARY BIG BUTTON: Open in uTorrent / qBittorrent */}
+            {/* PRIMARY BIG BUTTON: Open in App */}
             <button
               onClick={handleOpenClient}
               disabled={loadingMagnet}
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer"
-              title="Launch directly in uTorrent, qBittorrent, or default torrent app"
+              title="Launch directly in your torrent app"
             >
               {loadingMagnet ? (
                 <Loader2 className="w-4 h-4 animate-spin text-black" />
               ) : (
                 <Zap className="w-4 h-4 fill-black text-black" />
               )}
-              <span>{loadingMagnet ? 'Fetching Link...' : 'Open in Torrent App (uTorrent / qBit)'}</span>
+              <span>{loadingMagnet ? 'Fetching Link...' : 'Open in App'}</span>
             </button>
 
-            {/* SECONDARY BUTTON: Copy Magnet Link */}
+            {/* SECONDARY BUTTON: Copy Magnet */}
             <button
               onClick={handleCopyMagnet}
               disabled={loadingMagnet}
@@ -229,10 +229,10 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
                   ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                   : 'bg-[#1e2330] hover:bg-[#282e3f] text-gray-200 hover:text-white'
               }`}
-              title="Copy raw magnet URI to clipboard"
+              title="Copy magnet URI to clipboard"
             >
               {copied ? <Check className="w-3.5 h-3.5" /> : <Magnet className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Magnet Copied!' : 'Copy Magnet Link'}</span>
+              <span>{copied ? 'Magnet Copied!' : 'Copy Magnet'}</span>
             </button>
           </div>
 
@@ -339,15 +339,15 @@ export const TorrentCard: React.FC<TorrentCardProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Primary Open Client Button */}
+            {/* Primary Open in App Button */}
             <button
               onClick={handleOpenClient}
               disabled={loadingMagnet}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-sm active:scale-95"
-              title="Open directly in uTorrent / qBittorrent"
+              title="Open directly in torrent client"
             >
               <Zap className="w-3.5 h-3.5 fill-black" />
-              <span>Open in Client</span>
+              <span>Open in App</span>
             </button>
 
             {/* Secondary Magnet Button */}
