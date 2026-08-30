@@ -244,13 +244,23 @@ async function searchTorrentioEngine(
       return '';
     };
 
-    imdbId = await fetchMeta(isSeries ? 'series' : 'movie');
-
-    if (!imdbId) {
-      const altType = isSeries ? 'movie' : 'series';
-      imdbId = await fetchMeta(altType);
+    if (isSeries) {
+      imdbId = await fetchMeta('series');
       if (imdbId) {
-        isSeries = altType === 'series';
+        isSeries = true;
+      } else {
+        imdbId = await fetchMeta('movie');
+        if (imdbId) isSeries = false;
+      }
+    } else {
+      imdbId = await fetchMeta('movie');
+      if (imdbId) {
+        isSeries = false;
+      } else {
+        imdbId = await fetchMeta('series');
+        if (imdbId) {
+          isSeries = true;
+        }
       }
     }
 
