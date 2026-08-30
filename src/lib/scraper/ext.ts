@@ -276,8 +276,14 @@ async function searchTorrentioEngine(
 
     const items: TorrentItem[] = streams.map((s: any) => {
       const infoHash = (s.infoHash || '').toUpperCase();
-      const rawTitle = (s.behaviorHints?.filename || s.title || '').split('\n')[0].trim();
-      const cleanTorrentTitle = rawTitle || `${cleanTitle} Torrent`;
+      const lines = (s.title || '').split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+      let cleanTorrentTitle = '';
+      if (lines.length > 0 && !lines[0].startsWith('👤') && !lines[0].startsWith('💾') && !lines[0].startsWith('⚙️')) {
+        cleanTorrentTitle = lines[0];
+      }
+      if (!cleanTorrentTitle) {
+        cleanTorrentTitle = s.behaviorHints?.filename || `${cleanTitle} Torrent`;
+      }
 
       let seeders = 0;
       let sizeStr = 'Unknown';

@@ -66,9 +66,10 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string, alter
     extraTargets.push(strippedMd);
   }
 
-  const beforeColon = targetTitle.split(/[:\-–—]/)[0].trim();
-  if (beforeColon && beforeColon !== targetTitle) {
-    extraTargets.push(beforeColon);
+  if (targetTitle.toLowerCase() === 'house') {
+    extraTargets.push('dr house', 'doctor house', 'house md');
+  } else if (targetTitle.toLowerCase() === 'psycho') {
+    extraTargets.push('mob psycho', 'mob psycho 100', 'psycho pass');
   }
 
   const targets = Array.from(new Set([targetTitle, ...(alternateTitles || []), ...extraTargets]));
