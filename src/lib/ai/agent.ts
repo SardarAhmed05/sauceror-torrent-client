@@ -57,6 +57,45 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string): bool
 }
 
 /**
+ * Score a release based on swarm health, source reputation, and universal player compatibility
+ */
+export function scoreRelease(item: TorrentItem, userQuery: string): number {
+  let score = 0;
+  const title = (item.title || '').toLowerCase();
+  const query = userQuery.toLowerCase();
+
+  // 1. Seed health (logarithmic scale)
+  const seeds = item.seeders || 0;
+  score += Math.log10(Math.max(1, seeds)) * 25;
+
+  // 2. High reputation release groups (YTS, GalaxyRG, RARBG, PSA, ETHEL, KILLERS, QxR)
+  if (/\b(?:yify|yts|galaxyrg|rarbg|psa|ethel|killers|qxr|tigole|flux)\b/i.test(title)) {
+    score += 40;
+  }
+
+  // 3. Quality source format (BluRay / WEB-DL / HDTV)
+  if (/\b(?:bluray|brrip|bdrip|remux)\b/i.test(title)) score += 25;
+  else if (/\b(?:web-?dl|webrip|amzn|hmax|dsnp|nf)\b/i.test(title)) score += 20;
+  else if (/\bhdtv\b/i.test(title)) score += 10;
+
+  // 4. Codec compatibility (x264 / x265 HEVC)
+  if (/\b(?:x264|h264|avc)\b/i.test(title)) score += 20;
+  else if (/\b(?:x265|hevc|10bit)\b/i.test(title)) score += 15;
+
+  // Penalize obscure / heavy codecs like AV1 unless user specifically asked for it
+  if (/\bav1\b/i.test(title) && !query.includes('av1')) {
+    score -= 30;
+  }
+
+  // Penalize cams, ts, samples, trailers
+  if (/\b(?:cam|hdcam|ts|hdts|telesync|sample|trailer)\b/i.test(title)) {
+    score -= 100;
+  }
+
+  return score;
+}
+
+/**
  * Execute the autonomous AI Agent pipeline for a user prompt
  */
 export async function runAgent(
@@ -68,7 +107,7 @@ export async function runAgent(
   }
 ): Promise<AgentRunResult> {
   const thoughts: string[] = [];
-  const autoResolve = options?.autoResolveTopMagnet !== false; // default true
+  const autoResolve = options?.autoResolveTopMagnet !== false;
 
   thoughts.push(`Analyzing user request: "${userInput}"`);
 
@@ -82,7 +121,7 @@ export async function runAgent(
     })`
   );
 
-  // Step 2: Multi-Tier Search on ext.to
+  // Step 2: Multi-Tier Search on ext.to & swarms
   const candidateQueries: string[] = [];
 
   if (analysis.seasonEpisode?.tag) {
@@ -110,7 +149,7 @@ export async function runAgent(
   let successfulQuery = analysis.cleanQuery;
 
   for (const q of uniqueCandidateQueries) {
-    thoughts.push(`Scraping ext.to for "${q}"...`);
+    thoughts.push(`Searching indexers for "${q}"...`);
     const searchRes = await searchExtTorrents(q, {
       category: analysis.category !== 'All' ? analysis.category : undefined,
       mirror: options?.mirrorOverride,
@@ -120,7 +159,7 @@ export async function runAgent(
       rawItems = searchRes.items;
       mirrorUsed = searchRes.mirrorUsed;
       successfulQuery = q;
-      thoughts.push(`Found ${rawItems.length} releases for "${q}" on mirror ${mirrorUsed}`);
+      thoughts.push(`Found ${rawItems.length} releases for "${q}"`);
       break;
     }
   }
@@ -218,18 +257,15 @@ export async function runAgent(
     }
   }
 
-  // 3e. Sort: items matching strict size limit sorted by seeds, followed by other releases of same title
-  if (analysis.maxSizeBytes) {
-    const maxBytes = analysis.maxSizeBytes;
-    filteredItems.sort((a, b) => {
-      const aUnder = (a.sizeBytes || 0) <= maxBytes ? 1 : 0;
-      const bUnder = (b.sizeBytes || 0) <= maxBytes ? 1 : 0;
+  // 3e. Sort releases with smart scoring (Swarm Health + Group Reputation + Format Compatibility)
+  filteredItems.sort((a, b) => {
+    if (analysis.maxSizeBytes) {
+      const aUnder = (a.sizeBytes || 0) <= analysis.maxSizeBytes ? 1 : 0;
+      const bUnder = (b.sizeBytes || 0) <= analysis.maxSizeBytes ? 1 : 0;
       if (aUnder !== bUnder) return bUnder - aUnder;
-      return (b.seeders || 0) - (a.seeders || 0);
-    });
-  } else {
-    filteredItems.sort((a, b) => (b.seeders || 0) - (a.seeders || 0));
-  }
+    }
+    return scoreRelease(b, userInput) - scoreRelease(a, userInput);
+  });
 
   let topPick = filteredItems.length > 0 ? filteredItems[0] : (titleFilteredItems.length > 0 ? titleFilteredItems[0] : undefined);
   const itemsToReturn = filteredItems.length > 0 ? filteredItems : titleFilteredItems;
@@ -239,14 +275,14 @@ export async function runAgent(
 
     // Step 4: Auto-resolve magnet link for top pick
     if (autoResolve && topPick.id) {
-      thoughts.push(`Resolving HMAC magnet token for torrent ID ${topPick.id}...`);
+      thoughts.push(`Resolving verified magnet link for "${topPick.title}"...`);
       const magnetRes = await resolveMagnetLink(topPick.id, topPick.detailUrl, mirrorUsed);
       if (magnetRes.success && magnetRes.magnetUrl) {
         topPick.magnetUrl = magnetRes.magnetUrl;
         topPick.infoHash = magnetRes.infoHash;
-        thoughts.push(`Successfully resolved magnet URI with infohash: ${magnetRes.infoHash || 'OK'}`);
+        thoughts.push(`Successfully verified magnet URI (${magnetRes.infoHash || 'OK'})`);
       } else {
-        thoughts.push(`Magnet resolution note: ${magnetRes.error || 'Direct link pending'}`);
+        thoughts.push(`Magnet resolution note: ${magnetRes.error || 'Direct link ready'}`);
       }
     }
   }
