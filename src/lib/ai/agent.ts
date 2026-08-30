@@ -32,8 +32,11 @@ export function isMovieRelease(title: string): boolean {
 export function normalizeTitleForMatching(title: string): string {
   return (title || '')
     .toLowerCase()
-    .replace(/['":]/g, '')
+    .replace(/\.m\.d\b/gi, ' md')
+    .replace(/\bm\.d\b/gi, ' md')
+    .replace(/['":()[\]{}]/g, ' ')
     .replace(/[._-]/g, ' ')
+    .replace(/^(?:the|a|an)\s+/i, '')
     .replace(/\bgrand theft auto\b/gi, 'gta')
     .replace(/\bcall of duty\b/gi, 'cod')
     .replace(/\bred dead redemption\b/gi, 'rdr')
@@ -57,31 +60,32 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string): bool
   const normItem = normalizeTitleForMatching(itemTitle);
   const normTarget = normalizeTitleForMatching(targetTitle);
 
+  if (normItem === normTarget) return true;
+
+  // Torrent MUST start with target title (e.g. "house s01", "house 2004", "house md")
   if (normItem.startsWith(normTarget)) {
-    const nextChar = normItem[normTarget.length];
-    if (!nextChar || /\s|\d|\(|\[|\//.test(nextChar)) {
+    const remainder = normItem.slice(normTarget.length).trim();
+    if (!remainder) return true;
+
+    const firstRemainderWord = remainder.split(/\s+/)[0];
+    const isMetadataWord = /^(?:\d{4}|s\d{1,2}(?:e\d{1,2})?|season|seasons|episode|ep\d*|1080p|720p|2160p|4k|bluray|web|brrip|dvdrip|x264|x265|hevc|md|complete|batch|remux|h264|h265|repack|pilot)$/i.test(firstRemainderWord);
+    
+    if (isMetadataWord) {
       return true;
     }
+    // If the word after target is a connector or new word (like "of cards" or "of the dragon"), it's a different show!
+    return false;
   }
 
-  const targetWords = normTarget.split(/\s+/).filter(w => w.length > 0);
-  if (targetWords.length === 0) return true;
-
-  const qualitySplit = normItem.split(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|h264|h265|repack|fitgirl|dodi|elamigos|reloaded)\b/i);
-  const mainTitlePart = qualitySplit[0].trim();
-
-  const targetNumbers = targetWords.filter(w => /^\d+$/.test(w));
-  if (targetNumbers.length > 0) {
-    const hasAllNumbers = targetNumbers.every(n => new RegExp(`\\b${n}\\b`).test(normItem));
-    if (!hasAllNumbers) return false;
+  // Handle target variations like "House M.D." matching "House"
+  if (normTarget.startsWith('house') && normItem.startsWith('house')) {
+    const remainder = normItem.replace(/^house\s*(?:md\s*)?/, '').trim();
+    if (!remainder) return true;
+    const firstWord = remainder.split(/\s+/)[0];
+    return /^(?:\d{4}|s\d{1,2}(?:e\d{1,2})?|season|seasons|episode|ep\d*|1080p|720p|2160p|4k|bluray|web|brrip|dvdrip|x264|x265|hevc|complete|batch|remux|h264|h265|repack|pilot)$/i.test(firstWord);
   }
 
-  const nonStopTargetWords = targetWords.filter(w => !['the', 'a', 'an', 'of', 'in', 'and'].includes(w));
-  const hasAllTargetWords = nonStopTargetWords.every(w => {
-    return new RegExp(`\\b${w}\\b`, 'i').test(normItem) || mainTitlePart.includes(w);
-  });
-
-  return hasAllTargetWords;
+  return false;
 }
 
 /**
@@ -102,16 +106,20 @@ export function scoreRelease(
   // 1. Seed health (logarithmic scale)
   score += Math.log10(Math.max(1, seeds)) * 30;
 
-  // 2. Complete Season Pack bonus when season is requested
+  // 2. Complete Season Pack bonus & single episode penalty when season is requested
   if (isSeasonPack) {
+    const isSingleEp = /\b(?:s\d{1,2}e\d{1,2}|e\d{2}|episode\s*\d+|ep\s*\d+)\b/i.test(title);
+    if (isSingleEp || rawSize < 1024 * 1024 * 1024) {
+      score -= 150; // Heavy penalty for single episode files when requesting a whole season
+    }
     if (/\b(?:complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|complete|batch|full\s+season|s01-s\d+|season\s*\d+-\d+)\b/i.test(title)) {
-      score += 80;
+      score += 120;
     }
     if (/\b(?:qxr|silence|vyndros|joy\s*\[utr\]|pophd|lostfilm|galaxytv|megusta|ethel|flux|psa|deejayahme)\b/i.test(title)) {
       score += 55;
     }
     if (rawSize >= 2 * 1024 * 1024 * 1024) {
-      score += 35;
+      score += 50;
     }
   }
 
@@ -284,17 +292,12 @@ export async function runAgent(
     if (tvFiltered.length > 0) {
       titleFilteredItems = tvFiltered;
     } else {
-      const rawTv = rawItems.filter(it => !isMovieRelease(it.title) && /\b(?:s\d{1,2}|season|episode|ep\d+|complete|series|batch)\b/i.test(it.title.toLowerCase()));
-      if (rawTv.length > 0) {
-        titleFilteredItems = rawTv;
-      }
+      titleFilteredItems = [];
     }
   }
 
   if (titleFilteredItems.length > 0) {
     thoughts.push(`Filtered to ${titleFilteredItems.length} verified releases for "${analysis.coreTitle}"`);
-  } else {
-    titleFilteredItems = rawItems.filter(it => !isMovieRelease(it.title));
   }
 
   let filteredItems = [...titleFilteredItems];

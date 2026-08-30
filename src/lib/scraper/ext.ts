@@ -519,7 +519,6 @@ export async function searchExtTorrents(
     }
   }
 
-  // 1. Try Torrentio for Movies / Series if appropriate
   const isNonVideo =
     options.category === 'Games' ||
     options.category === 'Apps' ||
@@ -527,6 +526,22 @@ export async function searchExtTorrents(
     options.category === 'Music' ||
     /\b(?:pc|repack|game|iso|desktop|linux|ubuntu|windows|setup|crack|apk|pdf|epub|flac|mp3|book)\b/i.test(query);
 
+  const isSingleEpisode = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|episode\s*\d+|ep\s*\d+)\b/i.test(query);
+
+  const isSeasonPack =
+    (/\b(?:season\s*\d+|s\d{1,2}\b|complete\s+series|all\s+seasons|complete\s+season|complete)\b/i.test(query) ||
+      options.category === 'TV') &&
+    !isSingleEpisode;
+
+  // 1. For Season Packs or Non-Video: Search Universal Swarms FIRST for complete batch torrents
+  if (isSeasonPack || isNonVideo) {
+    const universalResult = await searchUniversalSwarm(query, options);
+    if (universalResult.success && universalResult.items.length > 0) {
+      return universalResult;
+    }
+  }
+
+  // 2. For Movies or Single TV Episodes: Try Torrentio
   const isVideoSearch =
     (options.category === 'Movies' ||
       options.category === 'TV' ||
@@ -540,17 +555,11 @@ export async function searchExtTorrents(
     }
   }
 
-  // 2. Fallback to Universal Swarm (Indexes ALL categories: Games, PC Repacks, Software, OS, Books, Music)
-  const universalResult = await searchUniversalSwarm(query, options);
-  if (universalResult.success && universalResult.items.length > 0) {
-    return universalResult;
-  }
-
-  // 3. Last attempt with Torrentio if not attempted
-  if (!isVideoSearch) {
-    const torrentioResult = await searchTorrentioEngine(query, options);
-    if (torrentioResult.success && torrentioResult.items.length > 0) {
-      return torrentioResult;
+  // 3. Fallback to Universal Swarm if not already attempted
+  if (!isSeasonPack && !isNonVideo) {
+    const universalResult = await searchUniversalSwarm(query, options);
+    if (universalResult.success && universalResult.items.length > 0) {
+      return universalResult;
     }
   }
 
