@@ -5,7 +5,9 @@ export const metadata: Metadata = {
   title: 'Sauceror AI Agent | ext.to Scraper & Magnet Extractor',
   description: 'Autonomous AI Agent and WhatsApp Bot that scrapes ext.to and provides direct magnet download links with health metrics.',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
   },
 };
 

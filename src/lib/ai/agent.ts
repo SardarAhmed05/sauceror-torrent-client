@@ -57,39 +57,61 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string): bool
 }
 
 /**
- * Score a release based on swarm health, source reputation, and universal player compatibility
+ * Score a release based on swarm health, source reputation, format compatibility, and size
  */
-export function scoreRelease(item: TorrentItem, userQuery: string): number {
+export function scoreRelease(
+  item: TorrentItem,
+  userQuery: string,
+  maxSizeBytes?: number
+): number {
   let score = 0;
   const title = (item.title || '').toLowerCase();
   const query = userQuery.toLowerCase();
+  const rawSize = item.sizeBytes || 0;
+  const seeds = item.seeders || 0;
 
   // 1. Seed health (logarithmic scale)
-  const seeds = item.seeders || 0;
-  score += Math.log10(Math.max(1, seeds)) * 25;
+  score += Math.log10(Math.max(1, seeds)) * 30;
 
-  // 2. High reputation release groups (YTS, GalaxyRG, RARBG, PSA, ETHEL, KILLERS, QxR)
-  if (/\b(?:yify|yts|galaxyrg|rarbg|psa|ethel|killers|qxr|tigole|flux)\b/i.test(title)) {
-    score += 40;
-  }
+  // 2. High reputation gold-standard release groups
+  if (/\b(?:yify|yts)\b/i.test(title)) score += 60;
+  else if (/\b(?:galaxyrg|rarbg|psa|ethel|flux|killers|qxr|tigole)\b/i.test(title)) score += 50;
 
   // 3. Quality source format (BluRay / WEB-DL / HDTV)
-  if (/\b(?:bluray|brrip|bdrip|remux)\b/i.test(title)) score += 25;
-  else if (/\b(?:web-?dl|webrip|amzn|hmax|dsnp|nf)\b/i.test(title)) score += 20;
-  else if (/\bhdtv\b/i.test(title)) score += 10;
+  if (/\b(?:bluray|brrip|bdrip|remux)\b/i.test(title)) score += 30;
+  else if (/\b(?:web-?dl|webrip|amzn|hmax|dsnp|nf)\b/i.test(title)) score += 25;
+  else if (/\bhdtv\b/i.test(title)) score += 15;
 
-  // 4. Codec compatibility (x264 / x265 HEVC)
-  if (/\b(?:x264|h264|avc)\b/i.test(title)) score += 20;
+  // 4. Universal Codec compatibility (x264 is #1 compatible on all players/TVs)
+  if (/\b(?:x264|h264|avc)\b/i.test(title)) score += 25;
   else if (/\b(?:x265|hevc|10bit)\b/i.test(title)) score += 15;
 
-  // Penalize obscure / heavy codecs like AV1 unless user specifically asked for it
+  // Heavy penalty for obscure codecs (AV1) or obscure personal rips (DKong, Soup) unless explicitly requested
   if (/\bav1\b/i.test(title) && !query.includes('av1')) {
-    score -= 30;
+    score -= 150;
+  }
+  if (/\b(?:dkong|soup|speranzah)\b/i.test(title)) {
+    score -= 100;
+  }
+
+  // 5. Size constraint weighting
+  if (maxSizeBytes && maxSizeBytes > 0) {
+    if (rawSize <= maxSizeBytes) {
+      score += 40; // Bonus for strictly within size limit
+    } else {
+      // Allow slight tolerance (up to 20% over limit) for gold-standard releases like YIFY (2.26GB vs 2.0GB)
+      const ratio = rawSize / maxSizeBytes;
+      if (ratio <= 1.20) {
+        score += 15; // Small penalty for close match
+      } else {
+        score -= (ratio - 1) * 60; // Strong penalty for oversized files
+      }
+    }
   }
 
   // Penalize cams, ts, samples, trailers
   if (/\b(?:cam|hdcam|ts|hdts|telesync|sample|trailer)\b/i.test(title)) {
-    score -= 100;
+    score -= 300;
   }
 
   return score;
@@ -240,31 +262,9 @@ export async function runAgent(
     }
   }
 
-  // 3d. Filter by Size Constraints
-  if (analysis.maxSizeBytes) {
-    const maxBytes = analysis.maxSizeBytes;
-    const underLimit = filteredItems.filter(it => (it.sizeBytes || 0) <= maxBytes);
-
-    if (underLimit.length > 0) {
-      const otherReleases = filteredItems.filter(it => (it.sizeBytes || 0) > maxBytes);
-      filteredItems = [...underLimit, ...otherReleases];
-      thoughts.push(`Found ${underLimit.length} releases strictly under ${(maxBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`);
-    } else {
-      const minAvailable = filteredItems.reduce((min, it) => (it.sizeBytes || Infinity) < (min.sizeBytes || Infinity) ? it : min, filteredItems[0]);
-      const sizeMsg = `No release was under ${(maxBytes / (1024 * 1024 * 1024)).toFixed(1)} GB (smallest available is ${minAvailable?.size || 'larger'}).`;
-      filterNote = filterNote ? `${filterNote} ${sizeMsg}` : sizeMsg;
-      thoughts.push(sizeMsg);
-    }
-  }
-
-  // 3e. Sort releases with smart scoring (Swarm Health + Group Reputation + Format Compatibility)
+  // 3d. Sort releases with smart scoring (Swarm Health + Group Reputation + Format Compatibility + Size)
   filteredItems.sort((a, b) => {
-    if (analysis.maxSizeBytes) {
-      const aUnder = (a.sizeBytes || 0) <= analysis.maxSizeBytes ? 1 : 0;
-      const bUnder = (b.sizeBytes || 0) <= analysis.maxSizeBytes ? 1 : 0;
-      if (aUnder !== bUnder) return bUnder - aUnder;
-    }
-    return scoreRelease(b, userInput) - scoreRelease(a, userInput);
+    return scoreRelease(b, userInput, analysis.maxSizeBytes) - scoreRelease(a, userInput, analysis.maxSizeBytes);
   });
 
   let topPick = filteredItems.length > 0 ? filteredItems[0] : (titleFilteredItems.length > 0 ? titleFilteredItems[0] : undefined);
