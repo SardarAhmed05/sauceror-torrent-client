@@ -15,6 +15,18 @@ export interface AgentRunResult {
 }
 
 /**
+ * Detect if a release is a standalone movie (has year or movie tags, but no season/episode/series indicators)
+ */
+export function isMovieRelease(title: string): boolean {
+  const lower = (title || '').toLowerCase();
+  const hasSeasonOrEpisode = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+|s\d{1,2}\b|episode\s*\d+|ep\s*\d+|complete\s+series|all\s+seasons|complete\s+season|seasons\s*\d+|tv\s+series)\b/i.test(lower);
+  if (hasSeasonOrEpisode) return false;
+
+  const hasMovieTag = /\b(19\d{2}|20\d{2}|uncut|theatrical|yify|yts\.mx)\b/i.test(lower);
+  return hasMovieTag;
+}
+
+/**
  * Normalize title strings, expanding common acronyms and roman numerals for accurate matching
  */
 export function normalizeTitleForMatching(title: string): string {
@@ -55,18 +67,15 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string): bool
   const targetWords = normTarget.split(/\s+/).filter(w => w.length > 0);
   if (targetWords.length === 0) return true;
 
-  // Split release groups and qualities
   const qualitySplit = normItem.split(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|h264|h265|repack|fitgirl|dodi|elamigos|reloaded)\b/i);
   const mainTitlePart = qualitySplit[0].trim();
 
-  // If target has specific number (e.g. gta 5), ensure number is present
   const targetNumbers = targetWords.filter(w => /^\d+$/.test(w));
   if (targetNumbers.length > 0) {
     const hasAllNumbers = targetNumbers.every(n => new RegExp(`\\b${n}\\b`).test(normItem));
     if (!hasAllNumbers) return false;
   }
 
-  // Check if all non-stop words of target are present in main title part
   const nonStopTargetWords = targetWords.filter(w => !['the', 'a', 'an', 'of', 'in', 'and'].includes(w));
   const hasAllTargetWords = nonStopTargetWords.every(w => {
     return new RegExp(`\\b${w}\\b`, 'i').test(normItem) || mainTitlePart.includes(w);
@@ -76,12 +85,13 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string): bool
 }
 
 /**
- * Score a release based on swarm health, source reputation, format compatibility, and size
+ * Score a release based on swarm health, source reputation, format compatibility, size, and season pack completeness
  */
 export function scoreRelease(
   item: TorrentItem,
   userQuery: string,
-  maxSizeBytes?: number
+  maxSizeBytes?: number,
+  isSeasonPack?: boolean
 ): number {
   let score = 0;
   const title = (item.title || '').toLowerCase();
@@ -92,18 +102,31 @@ export function scoreRelease(
   // 1. Seed health (logarithmic scale)
   score += Math.log10(Math.max(1, seeds)) * 30;
 
-  // 2. High reputation gold-standard release groups (Movies/TV & Games)
+  // 2. Complete Season Pack bonus when season is requested
+  if (isSeasonPack) {
+    if (/\b(?:complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|complete|batch|full\s+season|s01-s\d+|season\s*\d+-\d+)\b/i.test(title)) {
+      score += 80;
+    }
+    if (/\b(?:qxr|silence|vyndros|joy\s*\[utr\]|pophd|lostfilm|galaxytv|megusta|ethel|flux|psa|deejayahme)\b/i.test(title)) {
+      score += 55;
+    }
+    if (rawSize >= 2 * 1024 * 1024 * 1024) {
+      score += 35;
+    }
+  }
+
+  // 3. High reputation gold-standard release groups (Movies & Games)
   if (/\b(?:yify|yts)\b/i.test(title)) score += 60;
   else if (/\b(?:fitgirl|dodi|elamigos|reloaded|flt|empress|skidrow|codex|rune)\b/i.test(title)) score += 55;
   else if (/\b(?:galaxyrg|rarbg|psa|ethel|flux|killers|qxr|tigole)\b/i.test(title)) score += 50;
 
-  // 3. Quality source format (BluRay / WEB-DL / Repack / ISO)
+  // 4. Quality source format (BluRay / WEB-DL / Repack / ISO)
   if (/\b(?:bluray|brrip|bdrip|remux)\b/i.test(title)) score += 30;
   else if (/\b(?:repack|fitgirl|dodi)\b/i.test(title)) score += 30;
   else if (/\b(?:web-?dl|webrip|amzn|hmax|dsnp|nf)\b/i.test(title)) score += 25;
   else if (/\b(?:iso|x64|installer)\b/i.test(title)) score += 20;
 
-  // 4. Codec & Platform compatibility
+  // 5. Codec & Platform compatibility
   if (/\b(?:x264|h264|avc)\b/i.test(title)) score += 25;
   else if (/\b(?:x265|hevc|10bit)\b/i.test(title)) score += 15;
   if (/\b(?:pc|windows)\b/i.test(title)) score += 15;
@@ -116,7 +139,7 @@ export function scoreRelease(
     score -= 100;
   }
 
-  // 5. Size constraint weighting
+  // 6. Size constraint weighting
   if (maxSizeBytes && maxSizeBytes > 0) {
     if (rawSize <= maxSizeBytes) {
       score += 40;
@@ -160,23 +183,46 @@ export async function runAgent(
     `Target: "${analysis.coreTitle}" (Query: "${analysis.cleanQuery}", Category: ${analysis.category}${
       analysis.qualityPreference !== 'any' ? `, Quality: ${analysis.qualityPreference}` : ''
     }${analysis.maxSizeBytes ? `, MaxSize: ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)}GB` : ''}${
-      analysis.seasonEpisode?.tag ? `, Episode: ${analysis.seasonEpisode.tag}` : ''
+      analysis.seasonEpisode?.tag ? `, Season/Episode: ${analysis.seasonEpisode.tag}` : ''
     }${analysis.requiresSubtitles ? ', Subtitles: Yes' : ''})`
   );
 
   // Step 2: Multi-Tier Search on ext.to & swarms
   const candidateQueries: string[] = [];
+  const baseTitle = analysis.coreTitle;
 
-  if (analysis.seasonEpisode?.tag) {
-    const baseTitle = analysis.coreTitle;
-    if (analysis.qualityPreference !== 'any') {
-      candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag} ${analysis.qualityPreference}`);
+  if (analysis.seasonEpisode) {
+    if (analysis.seasonEpisode.isSeasonPack) {
+      const season = analysis.seasonEpisode.season;
+      if (season) {
+        const sPadded = season.toString().padStart(2, '0');
+        if (analysis.qualityPreference !== 'any') {
+          candidateQueries.push(`${baseTitle} Season ${season} ${analysis.qualityPreference}`);
+          candidateQueries.push(`${baseTitle} S${sPadded} ${analysis.qualityPreference}`);
+        }
+        candidateQueries.push(`${baseTitle} Season ${season} Complete`);
+        candidateQueries.push(`${baseTitle} S${sPadded} Complete`);
+        candidateQueries.push(`${baseTitle} Season ${season}`);
+        candidateQueries.push(`${baseTitle} S${sPadded}`);
+        candidateQueries.push(`${baseTitle} Complete Series`);
+        candidateQueries.push(`${baseTitle} Seasons`);
+        candidateQueries.push(baseTitle);
+      } else if (analysis.seasonEpisode.isCompleteSeries) {
+        candidateQueries.push(`${baseTitle} Complete Series`);
+        candidateQueries.push(`${baseTitle} All Seasons`);
+        candidateQueries.push(`${baseTitle} Complete`);
+        candidateQueries.push(baseTitle);
+      }
+    } else if (analysis.seasonEpisode.episode !== undefined) {
+      if (analysis.qualityPreference !== 'any') {
+        candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag} ${analysis.qualityPreference}`);
+      }
+      candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag}`);
+      candidateQueries.push(`${baseTitle} Season ${analysis.seasonEpisode.season} Episode ${analysis.seasonEpisode.episode}`);
+      candidateQueries.push(`${baseTitle} E${analysis.seasonEpisode.episode?.toString().padStart(2, '0')}`);
+      candidateQueries.push(`${baseTitle} S${analysis.seasonEpisode.season?.toString().padStart(2, '0')}`);
+      candidateQueries.push(baseTitle);
     }
-    candidateQueries.push(`${baseTitle} ${analysis.seasonEpisode.tag}`);
-    candidateQueries.push(`${baseTitle} Season ${analysis.seasonEpisode.season} Episode ${analysis.seasonEpisode.episode}`);
-    candidateQueries.push(`${baseTitle} E${analysis.seasonEpisode.episode?.toString().padStart(2, '0')}`);
-    candidateQueries.push(`${baseTitle} S${analysis.seasonEpisode.season?.toString().padStart(2, '0')}`);
-    candidateQueries.push(baseTitle);
   } else {
     candidateQueries.push(analysis.cleanQuery);
     if (analysis.qualityPreference !== 'any') {
@@ -190,7 +236,7 @@ export async function runAgent(
     }
   }
 
-  const uniqueCandidateQueries = Array.from(new Set(candidateQueries.filter(q => q.length > 1)));
+  const uniqueCandidateQueries = Array.from(new Set(candidateQueries.filter(q => q && q.length > 1)));
 
   let rawItems: TorrentItem[] = [];
   let mirrorUsed = options?.mirrorOverride || 'https://extto.com';
@@ -225,43 +271,109 @@ export async function runAgent(
 
   // Step 3: Strict Title Relevance Filtering
   let titleFilteredItems = rawItems.filter(it => isStrictTitleMatch(it.title, analysis.coreTitle));
+
+  // If user searched for a TV show/season, strictly require TV markers and eliminate standalone movies
+  if (analysis.category === 'TV' || analysis.seasonEpisode) {
+    const tvFiltered = titleFilteredItems.filter(it => {
+      if (isMovieRelease(it.title)) return false;
+      const lower = it.title.toLowerCase();
+      const hasTvMarker = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+|s\d{1,2}\b|episode\s*\d+|ep\s*\d+|complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|seasons\s*\d+|tv\s+series|batch)\b/i.test(lower);
+      return hasTvMarker;
+    });
+
+    if (tvFiltered.length > 0) {
+      titleFilteredItems = tvFiltered;
+    } else {
+      const rawTv = rawItems.filter(it => !isMovieRelease(it.title) && /\b(?:s\d{1,2}|season|episode|ep\d+|complete|series|batch)\b/i.test(it.title.toLowerCase()));
+      if (rawTv.length > 0) {
+        titleFilteredItems = rawTv;
+      }
+    }
+  }
+
   if (titleFilteredItems.length > 0) {
     thoughts.push(`Filtered to ${titleFilteredItems.length} verified releases for "${analysis.coreTitle}"`);
   } else {
-    titleFilteredItems = rawItems;
+    titleFilteredItems = rawItems.filter(it => !isMovieRelease(it.title));
   }
 
   let filteredItems = [...titleFilteredItems];
   let filterNote = '';
 
-  // 3a. Filter by Season & Episode if requested
+  // 3a. Filter by Season Pack or Single Episode
   if (analysis.seasonEpisode) {
-    const { season, episode, tag } = analysis.seasonEpisode;
-    const epNum = episode?.toString() || '';
-    const epPadded = episode?.toString().padStart(2, '0') || '';
-    const sNum = season?.toString() || '';
-    const sPadded = season?.toString().padStart(2, '0') || '';
+    if (analysis.seasonEpisode.isSeasonPack) {
+      const season = analysis.seasonEpisode.season;
+      const sNum = season?.toString() || '';
+      const sPadded = season?.toString().padStart(2, '0') || '';
 
-    const matchingEpisode = filteredItems.filter(it => {
-      const titleLower = it.title.toLowerCase();
-      return (
-        (tag && titleLower.includes(tag.toLowerCase())) ||
-        titleLower.includes(`s${sPadded}e${epPadded}`) ||
-        titleLower.includes(`s${sNum}e${epPadded}`) ||
-        titleLower.includes(`e${epPadded}`) ||
-        (titleLower.includes(`season: ${sNum}`) && titleLower.includes(`episode`)) ||
-        titleLower.includes(`episode ${epNum}`) ||
-        titleLower.includes(`ep ${epNum}`) ||
-        titleLower.includes(`ep.${epNum}`)
-      );
-    });
+      const matchingSeason = filteredItems.filter(it => {
+        const titleLower = it.title.toLowerCase();
+        if (season) {
+          return (
+            titleLower.includes(`season ${sNum}`) ||
+            titleLower.includes(`season ${sPadded}`) ||
+            titleLower.includes(`season: ${sNum}`) ||
+            titleLower.includes(`seasons: ${sNum}`) ||
+            titleLower.includes(`season 0${sNum}`) ||
+            titleLower.includes(`s${sPadded}`) ||
+            titleLower.includes(`s${sNum}`) ||
+            titleLower.includes(`season 1-${sNum}`) ||
+            titleLower.includes(`seasons 1-${sNum}`) ||
+            titleLower.includes(`seasons: 1-`) ||
+            titleLower.includes(`s01-s${sPadded}`) ||
+            titleLower.includes(`s01-`) ||
+            titleLower.includes(`complete series`) ||
+            titleLower.includes(`the complete seasons`) ||
+            titleLower.includes(`all seasons`) ||
+            titleLower.includes(`complete season`)
+          );
+        }
+        return (
+          titleLower.includes('complete series') ||
+          titleLower.includes('the complete seasons') ||
+          titleLower.includes('all seasons') ||
+          titleLower.includes('complete') ||
+          titleLower.includes('season 1-') ||
+          titleLower.includes('s01-')
+        );
+      });
 
-    if (matchingEpisode.length > 0) {
-      filteredItems = matchingEpisode;
-      thoughts.push(`Filtered to ${matchingEpisode.length} releases specifically for S${sPadded}E${epPadded}`);
-    } else {
-      filterNote = `Note: Episode ${episode} is not yet indexed separately. Showing available releases of "${analysis.coreTitle}".`;
-      thoughts.push(filterNote);
+      if (matchingSeason.length > 0) {
+        filteredItems = matchingSeason;
+        thoughts.push(`Filtered to ${matchingSeason.length} releases for ${analysis.seasonEpisode.tag || 'Season Pack'}`);
+      } else {
+        filterNote = `Note: Season pack for "${analysis.coreTitle} ${analysis.seasonEpisode.tag}" is not available separately. Showing all matching releases.`;
+        thoughts.push(filterNote);
+      }
+    } else if (analysis.seasonEpisode.episode !== undefined) {
+      const { season, episode, tag } = analysis.seasonEpisode;
+      const epNum = episode.toString();
+      const epPadded = episode.toString().padStart(2, '0');
+      const sNum = season?.toString() || '1';
+      const sPadded = (season || 1).toString().padStart(2, '0');
+
+      const matchingEpisode = filteredItems.filter(it => {
+        const titleLower = it.title.toLowerCase();
+        return (
+          (tag && titleLower.includes(tag.toLowerCase())) ||
+          titleLower.includes(`s${sPadded}e${epPadded}`) ||
+          titleLower.includes(`s${sNum}e${epPadded}`) ||
+          titleLower.includes(`e${epPadded}`) ||
+          (titleLower.includes(`season: ${sNum}`) && titleLower.includes(`episode`)) ||
+          titleLower.includes(`episode ${epNum}`) ||
+          titleLower.includes(`ep ${epNum}`) ||
+          titleLower.includes(`ep.${epNum}`)
+        );
+      });
+
+      if (matchingEpisode.length > 0) {
+        filteredItems = matchingEpisode;
+        thoughts.push(`Filtered to ${matchingEpisode.length} releases specifically for S${sPadded}E${epPadded}`);
+      } else {
+        filterNote = `Note: Episode ${episode} is not yet indexed separately. Showing available releases of "${analysis.coreTitle}".`;
+        thoughts.push(filterNote);
+      }
     }
   }
 
@@ -288,9 +400,13 @@ export async function runAgent(
     }
   }
 
-  // 3d. Sort releases with smart scoring (Swarm Health + Group Reputation + Format Compatibility + Size)
+  // 3d. Sort releases with smart scoring
+  const isSeasonPack = Boolean(analysis.seasonEpisode?.isSeasonPack);
   filteredItems.sort((a, b) => {
-    return scoreRelease(b, userInput, analysis.maxSizeBytes) - scoreRelease(a, userInput, analysis.maxSizeBytes);
+    return (
+      scoreRelease(b, userInput, analysis.maxSizeBytes, isSeasonPack) -
+      scoreRelease(a, userInput, analysis.maxSizeBytes, isSeasonPack)
+    );
   });
 
   let topPick = filteredItems.length > 0 ? filteredItems[0] : (titleFilteredItems.length > 0 ? titleFilteredItems[0] : undefined);

@@ -182,7 +182,7 @@ async function searchTorrentioEngine(
   try {
     let season = 1;
     let episode = 1;
-    let isSeries = false;
+    let isSeries = options.category === 'TV';
 
     const sxxExxMatch = query.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
     if (sxxExxMatch) {
@@ -201,6 +201,12 @@ async function searchTorrentioEngine(
           season = 1;
           episode = parseInt(epOnlyMatch[1], 10);
           isSeries = true;
+        } else {
+          const seasonOnlyMatch = query.match(/\b(?:season\s*(\d{1,2})|s(\d{1,2}))\b/i);
+          if (seasonOnlyMatch) {
+            season = parseInt(seasonOnlyMatch[1] || seasonOnlyMatch[2], 10);
+            isSeries = true;
+          }
         }
       }
     }
@@ -231,16 +237,17 @@ async function searchTorrentioEngine(
     }
 
     if (!imdbId) {
-      const altType = isSeries ? 'movie' : 'series';
-      const altMetaRes = await fetch(
-        `https://v3-cinemeta.strem.io/catalog/${altType}/top/search=${encodeURIComponent(cleanTitle)}.json`,
-        { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' }
-      );
-      if (altMetaRes.ok) {
-        const altData = await altMetaRes.json();
-        if (altData.metas && altData.metas.length > 0) {
-          imdbId = altData.metas[0].id;
-          if (!isSeries && altType === 'series') isSeries = true;
+      if (!isSeries && options.category !== 'TV') {
+        const altMetaRes = await fetch(
+          `https://v3-cinemeta.strem.io/catalog/series/top/search=${encodeURIComponent(cleanTitle)}.json`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' }
+        );
+        if (altMetaRes.ok) {
+          const altData = await altMetaRes.json();
+          if (altData.metas && altData.metas.length > 0) {
+            imdbId = altData.metas[0].id;
+            isSeries = true;
+          }
         }
       }
     }

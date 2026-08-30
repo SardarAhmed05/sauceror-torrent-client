@@ -15,6 +15,8 @@ export interface QueryAnalysis {
     season?: number;
     episode?: number;
     tag?: string;
+    isSeasonPack?: boolean;
+    isCompleteSeries?: boolean;
   };
   explanation: string;
 }
@@ -86,7 +88,7 @@ export function extractFeatureQualifiers(text: string): {
   }
 
   // General filler qualifiers
-  const fillerQualifiers = /\b(?:with\s+seeds?|with\s+good\s+seeds?|healthy\s+seeds?|active\s+seeds?|best\s+quality|high\s+quality|full\s+movie|full\s+episode|complete\s+series|complete\s+season|all\s+episodes|direct\s+download|fast\s+download)\b/gi;
+  const fillerQualifiers = /\b(?:with\s+seeds?|with\s+good\s+seeds?|healthy\s+seeds?|active\s+seeds?|best\s+quality|high\s+quality|full\s+movie|full\s+episode|direct\s+download|fast\s+download)\b/gi;
   cleaned = cleaned.replace(fillerQualifiers, ' ');
 
   return {
@@ -97,34 +99,62 @@ export function extractFeatureQualifiers(text: string): {
 }
 
 /**
- * Extract Season and Episode information (e.g. "Season 3 Episode 3", "S03E03", "Season 2 Ep 5")
+ * Extract Season and Episode information (e.g. "Season 3 Episode 3", "S03E03", "Season 1", "Season 8", "Complete Series")
  */
 export function extractSeasonEpisode(text: string): {
   cleanedText: string;
-  seasonEpisode?: { season?: number; episode?: number; tag?: string };
+  seasonEpisode?: {
+    season?: number;
+    episode?: number;
+    tag?: string;
+    isSeasonPack?: boolean;
+    isCompleteSeries?: boolean;
+  };
 } {
   let cleaned = text;
   let season: number | undefined;
   let episode: number | undefined;
   let tag: string | undefined;
+  let isSeasonPack = false;
+  let isCompleteSeries = false;
 
-  // Pattern: S01E03 or S1E3
+  // 1. Complete Series pattern (e.g. "Breaking Bad Complete Series", "Game of Thrones All Seasons")
+  if (/\b(?:complete\s+series|all\s+seasons|full\s+series|complete\s+show)\b/i.test(text)) {
+    isSeasonPack = true;
+    isCompleteSeries = true;
+    tag = 'Complete Series';
+    cleaned = cleaned.replace(/\b(?:complete\s+series|all\s+seasons|full\s+series|complete\s+show)\b/gi, ' ');
+  }
+
+  // 2. Pattern: S01E03 or S1E3
   const sxxExxMatch = text.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
   if (sxxExxMatch) {
     season = parseInt(sxxExxMatch[1], 10);
     episode = parseInt(sxxExxMatch[2], 10);
+    cleaned = cleaned.replace(sxxExxMatch[0], ' ');
   } else {
-    // Pattern: Season X Episode Y
+    // 3. Pattern: Season X Episode Y
     const fullMatch = text.match(/\bseason\s*(\d{1,2})\s*(?:episode|ep)\s*(\d{1,2})\b/i);
     if (fullMatch) {
       season = parseInt(fullMatch[1], 10);
       episode = parseInt(fullMatch[2], 10);
+      cleaned = cleaned.replace(fullMatch[0], ' ');
     } else {
-      // Pattern: Episode 3 or Ep 3
+      // 4. Pattern: Episode X or Ep X
       const epOnlyMatch = text.match(/\b(?:episode|ep)\s*(\d{1,2})\b/i);
       if (epOnlyMatch) {
         season = 1;
         episode = parseInt(epOnlyMatch[1], 10);
+        cleaned = cleaned.replace(epOnlyMatch[0], ' ');
+      } else {
+        // 5. Pattern: Season X or S0X (Complete Season Pack!)
+        const seasonOnlyMatch = text.match(/\b(?:season\s*(\d{1,2})|s(\d{1,2}))\b/i);
+        if (seasonOnlyMatch) {
+          season = parseInt(seasonOnlyMatch[1] || seasonOnlyMatch[2], 10);
+          isSeasonPack = true;
+          tag = `Season ${season}`;
+          cleaned = cleaned.replace(seasonOnlyMatch[0], ' ');
+        }
       }
     }
   }
@@ -133,11 +163,17 @@ export function extractSeasonEpisode(text: string): {
     const sStr = (season || 1).toString().padStart(2, '0');
     const eStr = episode.toString().padStart(2, '0');
     tag = `S${sStr}E${eStr}`;
+    isSeasonPack = false;
+  } else if (season !== undefined) {
+    tag = `Season ${season}`;
+    isSeasonPack = true;
   }
 
+  const hasResult = season !== undefined || episode !== undefined || isSeasonPack || isCompleteSeries;
+
   return {
-    cleanedText: cleaned,
-    seasonEpisode: episode !== undefined ? { season, episode, tag } : undefined
+    cleanedText: cleaned.replace(/\s+/g, ' ').trim(),
+    seasonEpisode: hasResult ? { season, episode, tag, isSeasonPack, isCompleteSeries } : undefined
   };
 }
 
@@ -174,7 +210,8 @@ export function cleanConversationalPrefix(input: string): string {
 export function extractCoreTitle(text: string): string {
   let title = text
     .replace(/\b(?:1080p|720p|2160p|4k|uhd|bluray|brrip|web-?dl|hdrip|dvdrip|x264|x265|hevc|remux|imax|hdr|dv|h264|h265|flac|lossless|pdf|epub|iso|repack|patch|crack)\b/gi, ' ')
-    .replace(/\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|season\s*\d+|episode\s*\d+|ep\s*\d+)\b/gi, ' ')
+    .replace(/\b(?:s\d{1,2}e\d{1,2}|season\s*\d+\s*(?:episode|ep)\s*\d+|season\s*\d+|episode\s*\d+|ep\s*\d+|s\d{1,2})\b/gi, ' ')
+    .replace(/\b(?:complete\s+series|all\s+seasons|complete\s+season|complete|batch)\b/gi, ' ')
     .replace(/\b(?:with\s+subtitles?|with\s+subs?|subtitles?|subs?|dual\s+audio)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -204,10 +241,20 @@ export function heuristicRefineQuery(input: string): QueryAnalysis {
   let category = 'All';
   const lower = text.toLowerCase();
 
-  if (/\b(movie|film|bluray|web-dl|hdr|remux|imax|cinemas?)\b/.test(lower)) {
-    category = 'Movies';
-  } else if (seasonEpisode || /\b(s\d{1,2}e\d{1,2}|season\s*\d+|episode\s*\d+|series|tv show)\b/.test(lower)) {
+  if (seasonEpisode || /\b(s\d{1,2}e\d{1,2}|season\s*\d+|episode\s*\d+|series|tv show|seasons)\b/.test(lower)) {
     category = 'TV';
+  } else if (/\b(movie|film|bluray|web-dl|hdr|remux|imax|cinemas?)\b/.test(lower)) {
+    category = 'Movies';
+  } else if (/\b(book|ebook|pdf|epub|audiobook|mobi|novel|guide|manual)\b/.test(lower)) {
+    category = 'Books';
+  } else if (/\b(game|repack|pc game|fitgirl|dodi|iso|crack|patch|mod)\b/.test(lower)) {
+    category = 'Games';
+  } else if (/\b(app|apk|software|windows|mac|linux|ubuntu|debian|keygen|setup|portable)\b/.test(lower)) {
+    category = 'Apps';
+  } else if (/\b(flac|mp3|album|discography|ost|soundtrack|320kbps)\b/.test(lower)) {
+    category = 'Music';
+  } else if (/\b(anime|manga|raw|subs?|crunchyroll|batch)\b/.test(lower)) {
+    category = 'Anime';
   } else if (/\b(book|ebook|pdf|epub|audiobook|mobi|novel|guide|manual)\b/.test(lower)) {
     category = 'Books';
   } else if (/\b(game|repack|pc game|fitgirl|dodi|iso|crack|patch|mod)\b/.test(lower)) {
