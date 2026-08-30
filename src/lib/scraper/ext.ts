@@ -20,8 +20,138 @@ export function parseSizeBytes(sizeStr: string): number {
   return val;
 }
 
+export function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+export function formatAge(dateStr?: string): string {
+  if (!dateStr) return 'Recently';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 3600 * 24));
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return '1 day ago';
+  if (diffDays < 30) return `${diffDays} days ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
+}
+
 /**
- * Search EXT Torrents with automatic mirror failover
+ * Fallback Torrent Search API (SolidTorrents API & Open Multi-Indexers)
+ * Used when ext.to returns 403 or Cloudflare challenges from datacenter IPs (like Vercel).
+ */
+async function searchFallbackIndexer(
+  query: string,
+  options: SearchOptions = {}
+): Promise<SearchResult> {
+  try {
+    const encoded = encodeURIComponent(query.trim());
+    let apiUrl = `https://solidtorrents.to/api/v1/search?q=${encoded}`;
+    if (options.category && options.category !== 'All') {
+      const catMap: Record<string, string> = {
+        'movies': '1',
+        'tv': '1',
+        'music': '2',
+        'books': '3',
+        'games': '4',
+        'apps': '5',
+        'anime': '6'
+      };
+      const catId = catMap[options.category.toLowerCase()];
+      if (catId) apiUrl += `&category=${catId}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(apiUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      },
+      cache: 'no-store'
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return {
+        success: false,
+        query,
+        total: 0,
+        items: [],
+        mirrorUsed: 'solidtorrents.to',
+        page: options.page || 1,
+        error: `Fallback indexer returned status ${res.status}`
+      };
+    }
+
+    const json = await res.json();
+    const results = json.results || [];
+    const items: TorrentItem[] = results.map((r: any) => {
+      const infoHash = (r.infohash || '').toUpperCase();
+      const rawSize = r.size || 0;
+      const sizeStr = formatBytes(rawSize);
+      const title = r.title || 'Untitled Torrent';
+      const magnetUrl = infoHash ? constructMagnetUri(infoHash, title, FALLBACK_TRACKERS) : undefined;
+
+      let catName = 'Other';
+      if (r.category === 1) catName = 'Video';
+      else if (r.category === 2) catName = 'Music';
+      else if (r.category === 3) catName = 'Books';
+      else if (r.category === 4) catName = 'Games';
+      else if (r.category === 5) catName = 'Apps';
+      else if (r.category === 6) catName = 'Anime';
+
+      let source = 'ext';
+      if (title.includes('YTS') || title.includes('YIFY')) source = 'yts';
+      else if (title.includes('EZTV')) source = 'eztv';
+      else if (title.includes('GalaxyRG') || title.includes('TGx')) source = 'torrentgalaxy';
+      else if (title.includes('1337x')) source = '1337x';
+      else if (title.includes('RARBG')) source = 'rarbg';
+
+      return {
+        id: r.id || infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        title,
+        detailUrl: `https://solidtorrents.to/view/${r.id}`,
+        category: catName,
+        size: sizeStr,
+        sizeBytes: rawSize,
+        age: formatAge(r.createdAt),
+        seeders: r.seeders || 0,
+        leechers: r.leechers || 0,
+        sourceTracker: source,
+        infoHash,
+        magnetUrl
+      };
+    });
+
+    return {
+      success: true,
+      query,
+      total: items.length,
+      items,
+      mirrorUsed: 'solidtorrents.to',
+      page: options.page || 1
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      query,
+      total: 0,
+      items: [],
+      mirrorUsed: 'solidtorrents.to',
+      page: options.page || 1,
+      error: err?.message || 'Fallback indexer query error'
+    };
+  }
+}
+
+/**
+ * Search EXT Torrents with automatic mirror failover and multi-tier indexer fallback
  */
 export async function searchExtTorrents(
   query: string,
@@ -58,7 +188,7 @@ export async function searchExtTorrents(
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 9000);
+      const timeout = setTimeout(() => controller.abort(), 6000);
 
       const response = await fetch(searchUrl, {
         headers: getBaseHeaders(mirror),
@@ -85,7 +215,6 @@ export async function searchExtTorrents(
         const detailHref = titleLink.attr('href') || '';
         if (!detailHref) return;
 
-        // Torrent ID: check data-id on buttons or URL
         const magnetBtn = tr.find('.search-magnet-btn, .download-btn-magnet, a[data-id]');
         let id = magnetBtn.attr('data-id') || '';
         if (!id) {
@@ -93,11 +222,9 @@ export async function searchExtTorrents(
           if (idMatch) id = idMatch[1];
         }
 
-        // Uploader
         const uploaderEl = tr.find('.external-user, .simple-user');
         const uploader = uploaderEl.text().trim() || undefined;
 
-        // Category & Subcategory
         const catLinks = tr.find('.related-posted a:not(.external-user), .mobile-posted-block a');
         let category = 'Other';
         let subcategory: string | undefined;
@@ -113,7 +240,6 @@ export async function searchExtTorrents(
           }
         });
 
-        // Size
         let size = '';
         tr.find('td').each((_, td) => {
           const wrapper = $(td).find('.add-block-wrapper');
@@ -126,7 +252,6 @@ export async function searchExtTorrents(
           if (mobSize) size = mobSize;
         }
 
-        // Files count
         let filesCount: number | undefined;
         tr.find('td').each((_, td) => {
           const wrapper = $(td).find('.add-block-wrapper');
@@ -136,7 +261,6 @@ export async function searchExtTorrents(
           }
         });
 
-        // Age
         let age = '';
         tr.find('td').each((_, td) => {
           const wrapper = $(td).find('.add-block-wrapper');
@@ -149,7 +273,6 @@ export async function searchExtTorrents(
           if (mobAge) age = mobAge;
         }
 
-        // Seeds & Leechs
         let seeders = 0;
         let leechers = 0;
 
@@ -175,7 +298,6 @@ export async function searchExtTorrents(
           if (mobLeechs) leechers = parseInt(mobLeechs, 10) || 0;
         }
 
-        // Source tracker badge
         const sourceImg = tr.find('.source-link-tor img').attr('src') || '';
         let sourceTracker = '';
         if (sourceImg) {
@@ -200,17 +322,26 @@ export async function searchExtTorrents(
         });
       });
 
-      return {
-        success: true,
-        query,
-        total: items.length,
-        items,
-        mirrorUsed: mirror,
-        page
-      };
+      if (items.length > 0) {
+        return {
+          success: true,
+          query,
+          total: items.length,
+          items,
+          mirrorUsed: mirror,
+          page
+        };
+      }
     } catch (err: any) {
       lastError = err.message || 'Unknown network error';
     }
+  }
+
+  // If all ext.to mirrors fail or return 403 (e.g. from Vercel Cloud IPs), automatically fall back to multi-indexer
+  console.log(`ext.to mirrors failed (${lastError}), falling back to multi-tier indexer for "${query}"`);
+  const fallbackResult = await searchFallbackIndexer(query, options);
+  if (fallbackResult.success && fallbackResult.items.length > 0) {
+    return fallbackResult;
   }
 
   return {
@@ -225,7 +356,7 @@ export async function searchExtTorrents(
 }
 
 /**
- * Resolve verified Magnet link using EXT's pageToken and HMAC SHA-256 protocol
+ * Resolve verified Magnet link using EXT's pageToken and HMAC SHA-256 protocol or BTIH fallback
  */
 export async function resolveMagnetLink(
   torrentId: string | number,
@@ -233,6 +364,20 @@ export async function resolveMagnetLink(
   mirrorPreference?: string
 ): Promise<MagnetResult> {
   const idStr = torrentId.toString();
+
+  // If detailUrl is already from solidtorrents or contains direct infohash
+  if (detailUrl.includes('solidtorrents.to')) {
+    if (idStr && idStr.length === 40) {
+      const magnetUrl = constructMagnetUri(idStr, 'Torrent', FALLBACK_TRACKERS);
+      return {
+        success: true,
+        torrentId: idStr,
+        magnetUrl,
+        infoHash: idStr.toUpperCase(),
+        trackers: FALLBACK_TRACKERS
+      };
+    }
+  }
 
   let mirror = mirrorPreference || DEFAULT_MIRRORS[0];
   let targetUrl = detailUrl;
@@ -247,7 +392,7 @@ export async function resolveMagnetLink(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000);
+    const timeout = setTimeout(() => controller.abort(), 7000);
 
     const pageRes = await fetch(targetUrl, {
       headers: getBaseHeaders(mirror),
@@ -267,7 +412,6 @@ export async function resolveMagnetLink(
     const html = await pageRes.text();
     const cookieHeader = pageRes.headers.get('set-cookie') || '';
 
-    // Check for direct magnet link in page
     const directMagnet = html.match(/href=["'](magnet:\?[^"']+)["']/i);
     if (directMagnet) {
       const magnetUrl = directMagnet[1];
@@ -280,7 +424,6 @@ export async function resolveMagnetLink(
       };
     }
 
-    // Extract pageToken and csrfToken
     const pageTokenMatch = html.match(/pageToken\s*=\s*['"]([^'"]+)['"]/);
     const csrfMetaMatch = html.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i);
     const csrfVarMatch = html.match(/csrfToken\s*=\s*['"]([^'"]+)['"]/);
@@ -309,7 +452,6 @@ export async function resolveMagnetLink(
       };
     }
 
-    // Compute HMAC: SHA256(torrentId + "|" + timestamp + "|" + pageToken)
     const timestamp = Math.floor(Date.now() / 1000);
     const hmacData = `${idStr}|${timestamp}|${pageToken}`;
     const hmacToken = crypto.createHash('sha256').update(hmacData).digest('hex');
