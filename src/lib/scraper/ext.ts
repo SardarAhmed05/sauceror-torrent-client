@@ -617,18 +617,18 @@ export async function searchExtTorrents(
   const results = await Promise.allSettled(searchPromises);
   const combinedItems: TorrentItem[] = [];
 
-  // If video, prioritize Torrentio verified streams first
-  if (!isNonVideo && results[0]?.status === 'fulfilled' && results[0].value.success) {
-    combinedItems.push(...results[0].value.items);
-  }
-
-  // Add direct extto items
-  combinedItems.push(...directExtItems);
-
-  // Add swarm items
+  // 1. Add authentic tracker swarm items FIRST so full archive sizes take precedence
   const swarmRes = isNonVideo ? results[0] : results[1];
   if (swarmRes?.status === 'fulfilled' && swarmRes.value.success) {
     combinedItems.push(...swarmRes.value.items);
+  }
+
+  // 2. Add direct extto items
+  combinedItems.push(...directExtItems);
+
+  // 3. Add supplementary stream items
+  if (!isNonVideo && results[0]?.status === 'fulfilled' && results[0].value.success) {
+    combinedItems.push(...results[0].value.items);
   }
 
   if (combinedItems.length > 0) {
