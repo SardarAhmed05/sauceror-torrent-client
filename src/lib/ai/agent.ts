@@ -141,25 +141,37 @@ export function scoreRelease(
   if (intent === 'tv_season_pack') {
     const isSingleEp = /\b(?:s\d{1,2}e\d{1,2}|e\d{2}|episode\s*\d+|ep\s*\d+)\b/i.test(title);
     if (isSingleEp || rawSize < 1024 * 1024 * 1024) {
-      score -= 500; // Overwhelming penalty so single episode files never beat full season packs
+      score -= 500; // Penalty so single episode files never beat full season packs
     }
 
-    // Check specific season match if user query specifies a season
+    const isCompleteReq = /\b(?:complete\s+series|all\s+seasons|full\s+series|entire\s+series)\b/i.test(query);
+    const isMultiSeason = /\b(?:season\s*\d+\s*-\s*\d+|s\d{1,2}\s*-\s*s?\d{1,2}|s\d{1,2}-\d{1,2}|complete\s+series|all\s+seasons|the\s+complete\s+seasons|integrale)\b/i.test(title);
+
+    // Check specific season match if user query specifies a season (e.g. Season 1, S02)
     const userSeasonMatch = query.match(/\b(?:season\s*(\d{1,2})|s(\d{1,2}))\b/i);
-    if (userSeasonMatch) {
+    if (userSeasonMatch && !isCompleteReq) {
       const sNum = (userSeasonMatch[1] || userSeasonMatch[2]);
       const sPadded = sNum.padStart(2, '0');
-      const isTargetSeason = title.includes(`season ${sNum}`) || title.includes(`season ${sPadded}`) || title.includes(`s${sPadded}`) || title.includes(`complete series`) || title.includes(`all seasons`) || title.includes('s01-');
-      if (isTargetSeason) {
-        score += 200;
+      const isExactSingleSeason = (title.includes(`season ${sNum}`) || title.includes(`season ${sPadded}`) || title.includes(`s${sPadded}`) || title.includes(`season 0${sNum}`)) && !isMultiSeason;
+
+      if (isExactSingleSeason) {
+        score += 500; // Highest priority for the exact season requested
+      } else if (isMultiSeason) {
+        score += 50;  // Multi-season boxset is secondary fallback
       } else {
-        score -= 600; // Severe penalty for wrong season
+        score -= 800; // Drop releases for different seasons
       }
+    } else if (isCompleteReq) {
+      if (isMultiSeason) {
+        score += 500; // Complete boxset requested
+      } else {
+        score += 100;
+      }
+    } else {
+      if (isMultiSeason) score += 200;
+      else score += 150;
     }
 
-    if (/\b(?:complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|complete|batch|full\s+season|s01-s\d+|season\s*\d+-\d+)\b/i.test(title)) {
-      score += 150;
-    }
     if (/\b(?:qxr|silence|vyndros|joy\s*\[utr\]|pophd|lostfilm|galaxytv|megusta|ethel|flux|psa|deejayahme)\b/i.test(title)) {
       score += 55;
     }
