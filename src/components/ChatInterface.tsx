@@ -26,6 +26,48 @@ interface ChatInterfaceProps {
   activeMirror: string;
 }
 
+const renderMarkdown = (content: string) => {
+  if (!content) return '';
+
+  const lines = content.split('\n');
+  const formattedLines: string[] = [];
+  let blockquoteContent: string[] = [];
+
+  const flushBlockquote = () => {
+    if (blockquoteContent.length > 0) {
+      formattedLines.push(
+        `<div class="my-2.5 p-3 rounded-xl bg-[#141824] border border-amber-500/30 text-xs text-gray-300 leading-relaxed shadow-sm">` +
+          `<div>${blockquoteContent.join('<br />')}</div>` +
+          `</div>`
+      );
+      blockquoteContent = [];
+    }
+  };
+
+  for (const line of lines) {
+    if (line.startsWith('> ') || line.startsWith('>')) {
+      const text = line.replace(/^>\s*/, '').trim();
+      blockquoteContent.push(
+        text
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em class="text-amber-300 not-italic font-medium">$1</em>')
+          .replace(/`([^`]+)`/g, '<code class="bg-[#0c0e14] text-amber-400 px-1.5 py-0.5 rounded text-xs border border-[#232838] font-mono">$1</code>')
+      );
+    } else {
+      flushBlockquote();
+      formattedLines.push(
+        line
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em class="text-amber-300 not-italic font-medium">$1</em>')
+          .replace(/`([^`]+)`/g, '<code class="bg-[#0c0e14] text-amber-400 px-1.5 py-0.5 rounded text-xs border border-[#232838] font-mono">$1</code>')
+      );
+    }
+  }
+  flushBlockquote();
+
+  return formattedLines.join('<br />');
+};
+
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   apiKey,
   activeMirror,
@@ -35,7 +77,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       id: 'welcome-msg',
       role: 'assistant',
       content:
-        '👋 **Welcome to Sauceror**, your AI-powered torrent search engine.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Game of Thrones Season 1"*, *"Dune 2 4K"*). I will extract verified releases, verify seeds/sizes, and provide instant magnet links.\n\n> 💡 **Note on Torrent Sizes & Searches**: File sizes for multi-episode series and season packs may reflect individual episode streams or full collection archives. If a rare release doesn\'t show up, try adding the release year (e.g. *"Dune 2024"* or *"House Season 1"*).',
+        '👋 **Welcome to Sauceror**, your AI-powered torrent search engine.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Game of Thrones Season 1"*, *"Dune Part Two ( 2024 )"*). I will extract verified releases, verify seeds/sizes, and provide instant magnet links.\n\n> 💡 **Note on Torrent Sizes & Searches**: File sizes for multi-episode series and season packs may reflect individual episode streams or full collection archives. If a rare release doesn\'t show up, try adding the release year (e.g. *"Dune Part Two ( 2024 )"* or *"House Season 1"*).',
       timestamp: Date.now(),
       status: 'done',
     },
@@ -81,7 +123,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const quickPrompts = [
     { label: 'Interstellar 1080p under 2 gbs', icon: '🎬' },
     { label: 'Game of Thrones Season 1', icon: '📺' },
-    { label: 'Dune Part Two 4K', icon: '🍿' },
+    { label: 'Dune Part Two ( 2024 )', icon: '🍿' },
     { label: 'House Season 1', icon: '🩺' },
   ];
 
@@ -248,7 +290,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       <div className="ext-card rounded-xl p-3.5 space-y-2 border-amber-500/30">
                         <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
                           <Brain className="w-3.5 h-3.5 animate-pulse" />
-                          <span>Searching &amp; Filtering ext.to...</span>
+                          <span>Searching &amp; Filtering verified indexers...</span>
                         </div>
                         <div className="space-y-1 text-xs text-gray-400 pl-4 border-l-2 border-amber-500/40">
                           {currentThoughts.map((t, idx) => (
@@ -263,12 +305,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                     {/* Assistant response text */}
                     {msg.content && (
-                      <div className="ext-card rounded-xl p-3.5 text-xs sm:text-sm text-gray-200 leading-relaxed whitespace-pre-line">
+                      <div className="ext-card rounded-xl p-3.5 text-xs sm:text-sm text-gray-200 leading-relaxed">
                         <div
                           dangerouslySetInnerHTML={{
-                            __html: msg.content
-                              .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
-                              .replace(/`([^`]+)`/g, '<code class="bg-[#0c0e14] text-amber-400 px-1.5 py-0.5 rounded text-xs border border-[#232838] font-mono">$1</code>'),
+                            __html: renderMarkdown(msg.content),
                           }}
                         />
                       </div>

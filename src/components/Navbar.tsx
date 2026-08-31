@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             AI Torrent Index
           </span>
           <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
-            v1.4.4
+            v1.4.5
           </span>
         </div>
 
