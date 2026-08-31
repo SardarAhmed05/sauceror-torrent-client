@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     let fromNumber = '';
     let isTwilio = false;
     let isMeta = false;
+    let metaPhoneNumberId = '';
 
     // Check if form-urlencoded (Twilio)
     if (contentType.includes('application/x-www-form-urlencoded')) {
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       // Check for Meta Cloud API format
       else if (body.entry && body.entry[0]?.changes && body.entry[0]?.changes[0]?.value) {
         const changeValue = body.entry[0].changes[0].value;
+        metaPhoneNumberId = changeValue.metadata?.phone_number_id || '';
         const messages = changeValue.messages;
 
         // If it's a delivery status update instead of an incoming message
@@ -135,10 +137,12 @@ export async function POST(req: NextRequest) {
     // 2. If request came from Meta Cloud API, send reply via Graph API
     if (isMeta) {
       const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || metaPhoneNumberId;
 
-      if (!accessToken || !phoneNumberId) {
-        console.error('WhatsApp Bot missing credentials! WHATSAPP_ACCESS_TOKEN set:', !!accessToken, 'WHATSAPP_PHONE_NUMBER_ID set:', !!phoneNumberId);
+      if (!accessToken) {
+        console.error('WhatsApp Bot Error: WHATSAPP_ACCESS_TOKEN is not configured in environment variables!');
+      } else if (!phoneNumberId) {
+        console.error('WhatsApp Bot Error: WHATSAPP_PHONE_NUMBER_ID could not be determined!');
       } else if (fromNumber) {
         const cleanTo = fromNumber.replace(/\D/g, '');
         try {
