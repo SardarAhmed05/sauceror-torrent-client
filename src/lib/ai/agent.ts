@@ -85,6 +85,8 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string, alter
     extraTargets.push('dune 2', 'dune part two', 'dune part 2', 'dune 1', 'dune part one');
   } else if (targetTitle.toLowerCase() === 'the office' || targetTitle.toLowerCase() === 'office') {
     extraTargets.push('the office us', 'the office uk', 'the office (us)', 'the office (uk)');
+  } else if (targetTitle.toLowerCase() === 'seven' || targetTitle.toLowerCase() === 'se7en') {
+    extraTargets.push('seven', 'se7en');
   }
 
   const targets = Array.from(new Set([targetTitle, ...(alternateTitles || []), ...extraTargets]));
@@ -281,7 +283,7 @@ export async function runAgent(
   let successfulQuery = analysis.cleanQuery;
 
   for (const q of uniqueQueries.slice(0, 3)) {
-    thoughts.push(`Searching indexers for "${q}"...`);
+    thoughts.push(`Searching verified indexers for "${q}"...`);
     const searchRes = await searchExtTorrents(q, {
       category: analysis.category !== 'All' ? analysis.category : undefined,
       mirror: options?.mirrorOverride,

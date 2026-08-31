@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      version: '1.4.2',
+      version: '1.4.3',
       data: agentResult
     });
   } catch (err: any) {

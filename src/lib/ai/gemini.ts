@@ -465,14 +465,14 @@ export async function synthesizeAgentResponse(
 
   if (!apiKey || topItems.length === 0) {
     if (topItems.length === 0) {
-      let msg = `I searched ext.to and swarm indexers for **"${analysis.coreTitle || analysis.cleanQuery}"** but couldn't find any active releases.`;
+      let msg = `I searched verified torrent trackers for **"${analysis.coreTitle || analysis.cleanQuery}"** but couldn't find any active releases.`;
       if (analysis.maxSizeBytes) {
         msg += ` (Note: Size constraint was under ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB).`;
       }
       return msg;
     }
     const best = topItems[0];
-    let res = `Found **${topItems.length}** verified release${topItems.length === 1 ? '' : 's'} for **"${analysis.coreTitle || analysis.cleanQuery}"** on ext.to.\n\n`;
+    let res = `Found **${topItems.length}** verified release${topItems.length === 1 ? '' : 's'} for **"${analysis.coreTitle || analysis.cleanQuery}"**.\n\n`;
     if (filterNote) {
       res += `ℹ️ ${filterNote}\n\n`;
     }
@@ -492,10 +492,10 @@ export async function synthesizeAgentResponse(
     ).join('\n');
 
     const prompt = `
-You are Sauceror, an AI torrent assistant for ext.to.
+You are Sauceror, an AI torrent search engine.
 User Query: "${userQuery}"
 Content Title: "${analysis.coreTitle}"
-Matching Releases on ext.to & verified swarms:
+Matching Releases on verified indexers:
 ${itemsSummary}
 ${filterNote ? `Constraint Note: ${filterNote}` : ''}
 

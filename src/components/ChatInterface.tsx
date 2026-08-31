@@ -35,7 +35,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       id: 'welcome-msg',
       role: 'assistant',
       content:
-        '👋 **Welcome to Sauceror**, your AI-powered **ext.to** torrent indexer.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Ubuntu 24.04 desktop iso"*, *"Dune 2 4K"*). I will extract all verified releases, verify seeds/sizes, and provide instant magnet links.',
+        '👋 **Welcome to Sauceror**, your AI-powered torrent search engine.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Game of Thrones Season 1"*, *"Dune 2 4K"*). I will extract verified releases, verify seeds/sizes, and provide instant magnet links.',
       timestamp: Date.now(),
       status: 'done',
     },
