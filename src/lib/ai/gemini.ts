@@ -415,16 +415,18 @@ export async function analyzeQueryWithGemini(
     const responseText = result.response.text();
     const parsed = JSON.parse(responseText);
 
-    const canonicalTitle = parsed.canonicalTitle || heuristic.canonicalTitle || heuristic.coreTitle;
-    const alternateTitles = Array.isArray(parsed.alternateTitles) ? parsed.alternateTitles : [];
+    const rawTitle = parsed.canonicalTitle || parsed.coreTitle || heuristic.canonicalTitle || heuristic.coreTitle;
+    const cleanCore = extractCoreTitle(rawTitle);
+    const canonicalTitle = cleanCore || rawTitle || heuristic.coreTitle;
+    const alternateTitles = Array.isArray(parsed.alternateTitles)
+      ? parsed.alternateTitles.map((t: string) => extractCoreTitle(t)).filter((t: string) => t && t !== canonicalTitle)
+      : [];
     const intent: QueryIntent = parsed.intent || heuristic.intent;
     const category = parsed.category || heuristic.category;
     const qualityPreference = parsed.qualityPreference || heuristic.qualityPreference;
 
-    // Merge search queries
-    const searchQueries = Array.isArray(parsed.searchQueries) && parsed.searchQueries.length > 0
-      ? parsed.searchQueries
-      : generateSearchQueries(canonicalTitle, intent, heuristic.seasonEpisode, qualityPreference);
+    // Use tokenized standard search query generator
+    const searchQueries = generateSearchQueries(canonicalTitle, intent, heuristic.seasonEpisode, qualityPreference);
 
     return {
       cleanQuery: parsed.cleanQuery || heuristic.cleanQuery,
