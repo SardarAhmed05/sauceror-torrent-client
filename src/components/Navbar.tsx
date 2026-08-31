@@ -62,19 +62,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Search className="w-4 h-4 shrink-0" />
             <span>Browse</span>
           </button>
-
-          <button
-            onClick={() => setActiveTab('whatsapp')}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'whatsapp'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 shrink-0" />
-            <span className="hidden xs:inline">WhatsApp</span>
-            <span className="xs:hidden">WA</span>
-          </button>
         </nav>
 
         {/* Right Controls */}

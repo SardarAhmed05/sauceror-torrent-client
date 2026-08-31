@@ -44,10 +44,6 @@ export default function Home() {
         <div className={`flex-1 flex flex-col ${activeTab === 'explorer' ? 'block' : 'hidden'}`}>
           <TorrentExplorer activeMirror={activeMirror} />
         </div>
-
-        <div className={`flex-1 flex flex-col ${activeTab === 'whatsapp' ? 'block' : 'hidden'}`}>
-          <WhatsAppSimulator />
-        </div>
       </div>
 
       {/* Settings Modal */}
