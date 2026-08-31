@@ -137,9 +137,12 @@ export async function POST(req: NextRequest) {
       const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
       const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-      if (accessToken && phoneNumberId && fromNumber) {
+      if (!accessToken || !phoneNumberId) {
+        console.error('WhatsApp Bot missing credentials! WHATSAPP_ACCESS_TOKEN set:', !!accessToken, 'WHATSAPP_PHONE_NUMBER_ID set:', !!phoneNumberId);
+      } else if (fromNumber) {
+        const cleanTo = fromNumber.replace(/\D/g, '');
         try {
-          await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          const metaRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -148,11 +151,18 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               messaging_product: 'whatsapp',
               recipient_type: 'individual',
-              to: fromNumber,
+              to: cleanTo,
               type: 'text',
               text: { body: replyText }
             })
           });
+
+          const metaData = await metaRes.json();
+          if (!metaRes.ok) {
+            console.error('Meta Graph API Send Error:', metaRes.status, JSON.stringify(metaData));
+          } else {
+            console.log('WhatsApp message sent successfully to', cleanTo, 'Message ID:', metaData.messages?.[0]?.id);
+          }
         } catch (metaErr: any) {
           console.error('Failed to send Meta Cloud API message:', metaErr?.message);
         }
