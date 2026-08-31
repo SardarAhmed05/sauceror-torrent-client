@@ -21,11 +21,38 @@ function escapeXml(unsafe: string): string {
   });
 }
 
+interface WebhookLog {
+  timestamp: string;
+  type: string;
+  from?: string;
+  query?: string;
+  payload?: any;
+  error?: string;
+  metaStatus?: number;
+  metaResponse?: any;
+}
+
+const recentWebhookLogs: WebhookLog[] = [];
+
+function addLog(log: WebhookLog) {
+  recentWebhookLogs.unshift(log);
+  if (recentWebhookLogs.length > 20) recentWebhookLogs.pop();
+}
+
 /**
  * GET Handler: Meta WhatsApp Cloud API Webhook Verification
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
+
+  // Live logs viewer
+  if (searchParams.get('logs') === '1') {
+    return NextResponse.json({
+      status: 'webhook_logs',
+      totalReceived: recentWebhookLogs.length,
+      logs: recentWebhookLogs
+    });
+  }
 
   // Diagnostic health checker for environment variables
   if (searchParams.get('debug') === '1') {
@@ -154,10 +181,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!incomingText.trim()) {
+      addLog({ timestamp: new Date().toISOString(), type: 'EMPTY_PAYLOAD' });
       return NextResponse.json({ success: false, error: 'No message content provided' }, { status: 400 });
     }
 
     const cleanInput = incomingText.trim();
+    addLog({ timestamp: new Date().toISOString(), type: 'INCOMING_MSG', from: fromNumber, query: cleanInput });
+
     let replyText = '';
     let agentResult: any = null;
 
@@ -197,8 +227,10 @@ export async function POST(req: NextRequest) {
       const phoneNumberId = rawPhoneId.trim().replace(/^["']|["']$/g, '');
 
       if (!accessToken) {
+        addLog({ timestamp: new Date().toISOString(), type: 'CONFIG_ERROR', error: 'WHATSAPP_ACCESS_TOKEN is missing' });
         console.error('WhatsApp Bot Error: WHATSAPP_ACCESS_TOKEN is not configured in environment variables!');
       } else if (!phoneNumberId) {
+        addLog({ timestamp: new Date().toISOString(), type: 'CONFIG_ERROR', error: 'WHATSAPP_PHONE_NUMBER_ID is missing' });
         console.error('WhatsApp Bot Error: WHATSAPP_PHONE_NUMBER_ID could not be determined!');
       } else if (fromNumber) {
         const cleanTo = fromNumber.replace(/\D/g, '');
@@ -219,12 +251,22 @@ export async function POST(req: NextRequest) {
           });
 
           const metaData = await metaRes.json();
+          addLog({
+            timestamp: new Date().toISOString(),
+            type: metaRes.ok ? 'REPLY_SUCCESS' : 'REPLY_ERROR',
+            from: cleanTo,
+            query: cleanInput,
+            metaStatus: metaRes.status,
+            metaResponse: metaData
+          });
+
           if (!metaRes.ok) {
             console.error('Meta Graph API Send Error:', metaRes.status, JSON.stringify(metaData));
           } else {
             console.log('WhatsApp message sent successfully to', cleanTo, 'Message ID:', metaData.messages?.[0]?.id);
           }
         } catch (metaErr: any) {
+          addLog({ timestamp: new Date().toISOString(), type: 'FETCH_ERROR', error: metaErr?.message });
           console.error('Failed to send Meta Cloud API message:', metaErr?.message);
         }
       }
