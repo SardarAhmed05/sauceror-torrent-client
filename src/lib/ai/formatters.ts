@@ -33,7 +33,8 @@ export function formatWhatsAppMessage(
 
   let msg = `*Sauceror - Your torrent client*\n\n`;
   msg += `🔎 *Query:* "${query}"\n`;
-  msg += `📊 *Releases Found:* ${items.length} verified releases\n\n`;
+  msg += `📊 *Releases Found:* ${items.length} verified releases\n`;
+  msg += `⚠️ _Note: File sizes may vary between single episodes and full season packs._\n\n`;
 
   msg += `🎯 *TOP RECOMMENDATION*\n`;
   msg += `📁 *Title:* ${best.title}\n`;
