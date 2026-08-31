@@ -54,6 +54,34 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // One-click WhatsApp Business Account Webhook Bridge Subscriber
+  if (searchParams.get('subscribe_waba')) {
+    const wabaId = (searchParams.get('subscribe_waba') || '971321992656828').trim();
+    const token = (process.env.WHATSAPP_ACCESS_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+
+    try {
+      const subRes = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const subData = await subRes.json();
+      return NextResponse.json({
+        httpStatus: subRes.status,
+        ok: subRes.ok,
+        wabaId,
+        metaResponse: subData
+      });
+    } catch (err: any) {
+      return NextResponse.json({
+        status: 'error',
+        error: err.message
+      }, { status: 500 });
+    }
+  }
+
   // Diagnostic health checker for environment variables
   if (searchParams.get('debug') === '1') {
     const rawToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
