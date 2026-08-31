@@ -21,10 +21,16 @@ export function formatWhatsAppMessage(
 
   const best = topPick || items[0];
 
+  // Extract infoHash for 1-click clickable link
+  let infoHash = best.infoHash || '';
+  if (!infoHash && best.magnetUrl) {
+    const hashMatch = best.magnetUrl.match(/urn:btih:([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})/i);
+    if (hashMatch) infoHash = hashMatch[1];
+  }
+
   // Create a clean, compact magnet without messy URL-encoded tracker clutter
   let cleanMagnet = best.magnetUrl || '';
   if (cleanMagnet.includes('&tr=')) {
-    // Keep xt and dn for ultra clean 1-tap copy
     const parts = cleanMagnet.split('&tr=');
     cleanMagnet = parts[0];
   }
@@ -43,9 +49,15 @@ export function formatWhatsAppMessage(
   }
   msg += `\n`;
 
+  if (infoHash) {
+    const shortTitle = encodeURIComponent(best.title.slice(0, 50));
+    msg += `⚡ *1-CLICK INSTANT DOWNLOAD:*\n`;
+    msg += `👉 https://sauceror.vercel.app/m/${infoHash}?dn=${shortTitle}\n`;
+    msg += `_(Tap link to launch directly in your torrent app)_\n\n`;
+  }
+
   if (cleanMagnet) {
-    msg += `🧲 *TAP & HOLD TO COPY MAGNET:*\n\`\`\`\n${cleanMagnet}\n\`\`\`\n\n`;
-    msg += `👉 _Paste into Flud, uTorrent, LibreTorrent, or qBittorrent to start downloading._\n\n`;
+    msg += `🧲 *OR TAP & HOLD TO COPY MAGNET:*\n\`\`\`\n${cleanMagnet}\n\`\`\`\n\n`;
   } else if (best.detailUrl) {
     msg += `🔗 *Detail Link:*\n${best.detailUrl}\n\n`;
   }
