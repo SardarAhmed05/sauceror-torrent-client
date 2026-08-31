@@ -66,7 +66,8 @@ export function formatWhatsAppMessage(
   }
 
   msg += `🌐 *Search More on Web:* https://sauceror.vercel.app\n`;
-  msg += `🤖 _Built by Sardar Ahmed_`;
+  msg += `🤖 *Built by Sardar Ahmed*\n`;
+  msg += `⭐ *GitHub:* https://github.com/SardarAhmed05/sauceror-torrent-client`;
 
   return msg;
 }
@@ -76,13 +77,17 @@ export function formatWhatsAppMessage(
  */
 export function formatWhatsAppHelp(): string {
   return (
-    `👋 *Welcome to Sauceror AI Agent on WhatsApp!*\n\n` +
-    `I can search verified torrent indexers and deliver instant magnet download links to your chat.\n\n` +
+    `*Sauceror - Your torrent client*\n\n` +
+    `👋 *Welcome to Sauceror AI on WhatsApp!*\n\n` +
+    `I search verified torrent indexers and deliver instant 1-click download links straight to your chat.\n\n` +
     `💡 *How to use:*\n` +
     `• Movies: \`Interstellar 1080p under 2 gbs\` or \`Dune Part Two ( 2024 ) 4k\`\n` +
     `• Series: \`Game of Thrones Season 1\` or \`House S01E01\`\n` +
     `• Dubbed / Audio: \`Breaking Bad Hindi\` or \`Game of thrones Dual Audio\`\n` +
     `• Software / Anime: \`Ubuntu 24.04 desktop iso\` or \`Attack on Titan 1080p\`\n\n` +
-    `Just send any movie, show, or game title, and I'll deliver verified magnets instantly!`
+    `Just send any title and I'll deliver verified download links instantly!\n\n` +
+    `🌐 *Web App:* https://sauceror.vercel.app\n` +
+    `🤖 *Built by Sardar Ahmed*\n` +
+    `⭐ *GitHub:* https://github.com/SardarAhmed05/sauceror-torrent-client`
   );
 }
