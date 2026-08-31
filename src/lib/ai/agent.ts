@@ -223,17 +223,23 @@ export function scoreRelease(
     score -= 100;
   }
 
-  // 6. Size constraint weighting
+  // 6. Strict Size constraint weighting
   if (maxSizeBytes && maxSizeBytes > 0) {
-    if (rawSize <= maxSizeBytes) {
-      score += 40;
+    if (rawSize > 0 && rawSize <= maxSizeBytes) {
+      score += 800;
+    } else if (rawSize > maxSizeBytes) {
+      score -= 1000;
+    }
+  }
+
+  // 7. Language and Dual Audio matching (e.g. Hindi, Dual Audio)
+  const isAudioReq = /\b(?:hindi|dual\s*audio|multi\s*audio|dubbed|tamil|telugu|french|spanish|german)\b/i.test(query);
+  if (isAudioReq) {
+    const isAudioMatch = /\b(?:hindi|dual\s*audio|multi\s*audio|dubbed|tamil|telugu|french|spanish|german)\b/i.test(title);
+    if (isAudioMatch) {
+      score += 700;
     } else {
-      const ratio = rawSize / maxSizeBytes;
-      if (ratio <= 1.20) {
-        score += 15;
-      } else {
-        score -= (ratio - 1) * 60;
-      }
+      score -= 300;
     }
   }
 

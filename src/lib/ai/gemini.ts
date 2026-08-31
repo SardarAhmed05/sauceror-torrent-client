@@ -95,8 +95,8 @@ export function extractFeatureQualifiers(text: string): {
     cleaned = cleaned.replace(subPattern, ' ');
   }
 
-  // Dual audio patterns
-  const audioPattern = /\b(?:with\s+dual\s+audio|dual\s+audio|multi\s+audio|multi\s+dub|hindi\s+dubbed|hindi\s+audio|french\s+audio|spanish\s+audio)\b/gi;
+  // Dual audio & Language patterns (e.g. "Game of thrones Hindi", "Breaking Bad Dual Audio")
+  const audioPattern = /\b(?:with\s+dual\s+audio|dual\s+audio|multi\s+audio|multi\s+dub|hindi\s+dubbed|hindi\s+audio|hindi|tamil|telugu|kannada|malayalam|french|spanish|german|russian|italian|japanese|korean|dubbed)\b/gi;
   if (audioPattern.test(cleaned)) {
     requiresDualAudio = true;
     cleaned = cleaned.replace(audioPattern, ' ');
@@ -240,10 +240,17 @@ export function generateSearchQueries(
   coreTitle: string,
   intent: QueryIntent,
   seasonEpisode?: { season?: number; episode?: number; tag?: string; isSeasonPack?: boolean; isCompleteSeries?: boolean },
-  qualityPreference?: string
+  qualityPreference?: string,
+  requiresDualAudio?: boolean
 ): string[] {
   const queries: string[] = [];
   const base = coreTitle;
+
+  if (requiresDualAudio) {
+    queries.push(`${base} Hindi`);
+    queries.push(`${base} Dual Audio`);
+    queries.push(`${base} Dubbed`);
+  }
 
   if (intent === 'tv_season_pack') {
     const season = seasonEpisode?.season;
@@ -299,9 +306,11 @@ export function generateSearchQueries(
       queries.push(`${base} ${qualityPreference}`);
     }
     queries.push(base);
+    queries.push(`${base} 1080p`);
+    queries.push(`${base} 720p`);
   }
 
-  return Array.from(new Set(queries.filter(q => q && q.length > 1)));
+  return Array.from(new Set(queries.filter(q => q && q.trim().length > 0)));
 }
 
 /**

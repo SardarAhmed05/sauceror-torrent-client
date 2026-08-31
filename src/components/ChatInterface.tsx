@@ -268,8 +268,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             >
               {/* Assistant Icon */}
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500 text-black font-black flex items-center justify-center text-xs shrink-0 mt-1 shadow-sm">
-                  EXT
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 p-1 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                  <img src="/icon.svg" alt="Sauceror" className="w-full h-full object-contain" />
                 </div>
               )}
 

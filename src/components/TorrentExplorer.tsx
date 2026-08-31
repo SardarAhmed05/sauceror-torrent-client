@@ -75,7 +75,7 @@ export const TorrentExplorer: React.FC<TorrentExplorerProps> = ({
   };
 
   useEffect(() => {
-    executeSearch('ubuntu', 1, 'All');
+    executeSearch(query, 1, activeCategory);
   }, [activeMirror]);
 
   const filteredItems = items.filter((item) => {
@@ -100,7 +100,9 @@ export const TorrentExplorer: React.FC<TorrentExplorerProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <span className="bg-amber-500 text-black text-xs font-black px-2 py-0.5 rounded">EXT</span>
+              <div className="w-6 h-6 rounded-md bg-amber-500/10 border border-amber-500/30 p-0.5 flex items-center justify-center">
+                <img src="/icon.svg" alt="Sauceror" className="w-full h-full object-contain" />
+              </div>
               <span>Browse &amp; Search Torrents</span>
             </h1>
             <p className="text-xs text-gray-400">

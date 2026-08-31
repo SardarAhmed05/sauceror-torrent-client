@@ -19,12 +19,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 w-full ext-header">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
-        {/* Brand Logo - ext.to inspired clean identity */}
+        {/* Brand Logo - Film Reel identity */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveTab('chat')}>
-            <span className="bg-amber-500 text-[#0c0e14] font-black text-xs sm:text-sm px-2 py-0.5 rounded tracking-wider shadow-sm">
-              EXT
-            </span>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('chat')}>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 p-1 flex items-center justify-center shadow-sm">
+              <img src="/icon.svg" alt="Sauceror" className="w-full h-full object-contain" />
+            </div>
             <span className="font-extrabold text-sm sm:text-base tracking-tight text-white">
               SAUCEROR
             </span>
@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             AI Torrent Index
           </span>
           <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
-            v1.4.5
+            v1.4.6
           </span>
         </div>
 
