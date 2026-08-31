@@ -166,6 +166,53 @@ async function searchUniversalSwarm(query: string, options: SearchOptions = {}):
       console.warn('Apibay swarm error:', e?.message);
     }
 
+    // 3. Resilient YTS Movie Scraper (for all movies / 1080p / 4k / bluray)
+    const isVideoQuery = options.category === 'Movies' || /\b(?:1080p|720p|2160p|4k|bluray|movie|film|yts|remux|dvdrip|hdr)\b/i.test(q) || !options.category;
+    if (isVideoQuery) {
+      const ytsMirrors = ['https://yts.lt', 'https://yts.am', 'https://yts.ag', 'https://yts.mx'];
+      for (const ym of ytsMirrors) {
+        try {
+          const res = await fetch(`${ym}/api/v2/list_movies.json?query_term=${encoded}&limit=20`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            signal: AbortSignal.timeout(2000),
+            cache: 'no-store'
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.data?.movies && Array.isArray(data.data.movies)) {
+              data.data.movies.forEach((m: any) => {
+                if (m.torrents && Array.isArray(m.torrents)) {
+                  m.torrents.forEach((t: any) => {
+                    const infoHash = (t.hash || '').toUpperCase();
+                    if (infoHash && items.some(it => it.infoHash === infoHash)) return;
+                    const title = `${m.title} (${m.year}) [${t.quality}] [YTS] ${t.type.toUpperCase()}`;
+                    const sizeBytes = t.size_bytes || 0;
+                    const sizeStr = t.size || formatBytes(sizeBytes);
+                    const magnetUrl = constructMagnetUri(infoHash, title, FALLBACK_TRACKERS);
+                    items.push({
+                      id: infoHash || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                      title,
+                      detailUrl: `https://extto.com/browse/?q=${encodeURIComponent(m.title)}`,
+                      category: 'Movies',
+                      size: sizeStr,
+                      sizeBytes,
+                      age: `${m.year}`,
+                      seeders: t.seeds || 10,
+                      leechers: t.peers || 0,
+                      sourceTracker: 'yts',
+                      infoHash,
+                      magnetUrl
+                    });
+                  });
+                }
+              });
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
     if (items.length > 0) break;
   }
 
