@@ -11,11 +11,11 @@ export function formatWhatsAppMessage(
   if (!items || items.length === 0) {
     return (
       `🔍 *Sauceror AI Agent*\n\n` +
-      `No torrent results found on *ext.to* for: "${query}"\n\n` +
+      `No torrent results found for: "${query}"\n\n` +
       `💡 *Tips:*\n` +
-      `• Check spelling of the title/release.\n` +
-      `• Try removing special characters or version numbers.\n` +
-      `• Try broader terms (e.g. "Interstellar" instead of exact full release string).`
+      `• Try adding the release year (e.g. "Dune Part Two ( 2024 )").\n` +
+      `• Specify a season or episode (e.g. "Game of Thrones Season 1").\n` +
+      `• Check spelling or try simpler keywords.`
     );
   }
 
@@ -66,13 +66,12 @@ export function formatWhatsAppMessage(
 export function formatWhatsAppHelp(): string {
   return (
     `👋 *Welcome to Sauceror AI Agent on WhatsApp!*\n\n` +
-    `I can search *ext.to* and give you verified magnet download links instantly.\n\n` +
+    `I can search verified torrent indexers and deliver instant magnet download links to your chat.\n\n` +
     `💡 *How to use:*\n` +
-    `• Send any movie name: \`Interstellar 1080p under 2 gbs\`\n` +
-    `• Send series: \`Lanterns S01E02 1080p\`\n` +
-    `• Send software/OS: \`Ubuntu 24.04 desktop iso\`\n` +
-    `• Send books: \`Python cookbook pdf\`\n` +
-    `• Send games: \`Cyberpunk 2077 pc\`\n\n` +
-    `Just send your search query and I will deliver verified magnet links for you!`
+    `• Movies: \`Interstellar 1080p under 2 gbs\` or \`Dune Part Two ( 2024 ) 4k\`\n` +
+    `• Series: \`Game of Thrones Season 1\` or \`House S01E01\`\n` +
+    `• Dubbed / Audio: \`Breaking Bad Hindi\` or \`Game of thrones Dual Audio\`\n` +
+    `• Software / Anime: \`Ubuntu 24.04 desktop iso\` or \`Attack on Titan 1080p\`\n\n` +
+    `Just send any movie, show, or game title, and I'll deliver verified magnets instantly!`
   );
 }
