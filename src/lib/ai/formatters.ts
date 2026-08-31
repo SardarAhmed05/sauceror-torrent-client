@@ -1,5 +1,14 @@
 import { TorrentItem } from '../scraper/types';
 
+function getItemHash(item: TorrentItem): string {
+  if (item.infoHash) return item.infoHash;
+  if (item.magnetUrl) {
+    const hashMatch = item.magnetUrl.match(/urn:btih:([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})/i);
+    if (hashMatch) return hashMatch[1];
+  }
+  return '';
+}
+
 /**
  * Format a torrent item and search summary for WhatsApp text output
  */
@@ -10,7 +19,7 @@ export function formatWhatsAppMessage(
 ): string {
   if (!items || items.length === 0) {
     return (
-      `🔍 *Sauceror AI Agent*\n\n` +
+      `*Sauceror - Your torrent client*\n\n` +
       `No torrent results found for: "${query}"\n\n` +
       `💡 *Tips:*\n` +
       `• Try adding the release year (e.g. "Dune Part Two ( 2024 )").\n` +
@@ -20,23 +29,9 @@ export function formatWhatsAppMessage(
   }
 
   const best = topPick || items[0];
+  const bestHash = getItemHash(best);
 
-  // Extract infoHash for 1-click clickable link
-  let infoHash = best.infoHash || '';
-  if (!infoHash && best.magnetUrl) {
-    const hashMatch = best.magnetUrl.match(/urn:btih:([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})/i);
-    if (hashMatch) infoHash = hashMatch[1];
-  }
-
-  // Create a clean, compact magnet without messy URL-encoded tracker clutter
-  let cleanMagnet = best.magnetUrl || '';
-  if (cleanMagnet.includes('&tr=')) {
-    const parts = cleanMagnet.split('&tr=');
-    cleanMagnet = parts[0];
-  }
-
-  let msg = `⚡ *SAUCEROR AI AGENT* ⚡\n`;
-  msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  let msg = `*Sauceror - Your torrent client*\n\n`;
   msg += `🔎 *Query:* "${query}"\n`;
   msg += `📊 *Releases Found:* ${items.length} verified releases\n\n`;
 
@@ -47,34 +42,31 @@ export function formatWhatsAppMessage(
   if (best.sourceTracker) {
     msg += `🌐 *Source:* ${best.sourceTracker}\n`;
   }
-  msg += `\n`;
-
-  if (infoHash) {
+  if (bestHash) {
     const shortTitle = encodeURIComponent(best.title.slice(0, 50));
-    msg += `⚡ *1-CLICK INSTANT DOWNLOAD:*\n`;
-    msg += `👉 https://sauceror.vercel.app/m/${infoHash}?dn=${shortTitle}\n`;
-    msg += `_(Tap link to launch directly in your torrent app)_\n\n`;
-  }
-
-  if (cleanMagnet) {
-    msg += `🧲 *OR TAP & HOLD TO COPY MAGNET:*\n\`\`\`\n${cleanMagnet}\n\`\`\`\n\n`;
+    msg += `👉 *Direct Download Link:*\nhttps://sauceror.vercel.app/m/${bestHash}?dn=${shortTitle}\n\n`;
   } else if (best.detailUrl) {
     msg += `🔗 *Detail Link:*\n${best.detailUrl}\n\n`;
   }
 
-  msg += `🌐 *View & Search on Web:*\nhttps://sauceror.vercel.app\n\n`;
-
   const otherReleases = items.filter((it) => it.id !== best.id);
   if (otherReleases.length > 0) {
-    msg += `📋 *OTHER VERSIONS AVAILABLE:*\n`;
+    msg += `📋 *OTHER MATCHING RELEASES:*\n\n`;
     otherReleases.slice(0, 4).forEach((item, idx) => {
-      msg += `${idx + 2}. *${item.title}*\n`;
-      msg += `   ↳ 📦 ${item.size}  •  🌱 ${item.seeders} seeds\n`;
+      const itemHash = getItemHash(item);
+      msg += `${idx + 1}. *${item.title}*\n`;
+      msg += `   ↳ 📦 ${item.size}  |  🌱 ${item.seeders} seeds\n`;
+      if (itemHash) {
+        const itemTitle = encodeURIComponent(item.title.slice(0, 50));
+        msg += `   👉 https://sauceror.vercel.app/m/${itemHash}?dn=${itemTitle}\n\n`;
+      } else if (item.detailUrl) {
+        msg += `   👉 ${item.detailUrl}\n\n`;
+      }
     });
   }
 
-  msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `🤖 _Sauceror AI • Built by Sardar Ahmed_`;
+  msg += `🌐 *Search More on Web:* https://sauceror.vercel.app\n`;
+  msg += `🤖 _Built by Sardar Ahmed_`;
 
   return msg;
 }

@@ -31,10 +31,8 @@ export default function MagnetRedirectPage() {
   useEffect(() => {
     if (hash && typeof window !== 'undefined') {
       try {
-        const timeout = setTimeout(() => {
-          window.location.href = magnetUrl;
-        }, 400);
-        return () => clearTimeout(timeout);
+        // Instant trigger with 0 delay
+        window.location.href = magnetUrl;
       } catch (e) {}
     }
   }, [hash, magnetUrl]);
