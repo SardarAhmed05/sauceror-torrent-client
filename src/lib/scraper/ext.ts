@@ -64,7 +64,8 @@ async function searchUniversalSwarm(query: string, options: SearchOptions = {}):
     // 1. SolidTorrents Search API (Excellent for PC Games, Repacks, Software, Movies, Books)
     try {
       const res = await fetch(`https://solidtorrents.to/api/v1/search?q=${encoded}&sort=seeders`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(2000),
         cache: 'no-store'
       });
       if (res.ok) {
@@ -113,14 +114,11 @@ async function searchUniversalSwarm(query: string, options: SearchOptions = {}):
 
     // 2. Apibay Open Indexer (All Categories: Games, Applications, Audio, Video, Books)
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`https://apibay.org/q.php?q=${encoded}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(2000),
         cache: 'no-store'
       });
-      clearTimeout(timeout);
 
       if (res.ok) {
         const data = await res.json();
@@ -237,7 +235,7 @@ async function searchTorrentioEngine(
       try {
         const metaRes = await fetch(
           `https://v3-cinemeta.strem.io/catalog/${catalogType}/top/search=${encodeURIComponent(cleanTitle)}.json`,
-          { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' }
+          { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, signal: AbortSignal.timeout(2000), cache: 'no-store' }
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
@@ -282,7 +280,8 @@ async function searchTorrentioEngine(
       : `https://torrentio.strem.fun/stream/movie/${imdbId}.json`;
 
     const streamRes = await fetch(streamUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(2000),
       cache: 'no-store'
     });
 
@@ -420,15 +419,11 @@ export async function searchExtTorrents(
         searchUrl += `&sort=${options.sortBy}&order=${options.sortOrder || 'desc'}`;
       }
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-
       const response = await fetch(searchUrl, {
         headers: getBaseHeaders(mirror),
-        signal: controller.signal,
+        signal: AbortSignal.timeout(1500),
         cache: 'no-store'
       });
-      clearTimeout(timeout);
 
       if (!response.ok) {
         lastError = `Mirror ${mirror} responded with status ${response.status}`;

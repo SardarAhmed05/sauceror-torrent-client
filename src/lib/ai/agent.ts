@@ -266,7 +266,7 @@ export async function runAgent(
   let mirrorUsed = options?.mirrorOverride || 'https://extto.com';
   let successfulQuery = analysis.cleanQuery;
 
-  for (const q of uniqueQueries) {
+  for (const q of uniqueQueries.slice(0, 3)) {
     thoughts.push(`Searching indexers for "${q}"...`);
     const searchRes = await searchExtTorrents(q, {
       category: analysis.category !== 'All' ? analysis.category : undefined,
