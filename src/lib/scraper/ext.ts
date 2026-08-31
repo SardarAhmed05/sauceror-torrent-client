@@ -593,17 +593,19 @@ export async function searchExtTorrents(
     }
   }
 
-  const isNonVideo =
+  const isVideoCategory = options.category === 'TV' || options.category === 'Movies';
+  const isNonVideo = !isVideoCategory && (
     options.category === 'Games' ||
     options.category === 'Apps' ||
     options.category === 'Books' ||
     options.category === 'Music' ||
-    /\b(?:pc|repack|game|iso|desktop|linux|ubuntu|windows|setup|crack|apk|pdf|epub|flac|mp3|book)\b/i.test(query);
+    (/\b(?:repack|fitgirl|dodi|iso|desktop|ubuntu|windows\s*11|setup\.exe|crack|apk|pdf|epub|flac|mp3)\b/i.test(query) && !/\b(?:season|s\d{1,2}|episode|ep\d+|movie|film|1080p|720p|2160p|4k|bluray|hdtv)\b/i.test(query))
+  );
 
   // Run Swarms and/or Torrentio based on search type
   const searchPromises: Promise<SearchResult>[] = [];
 
-  // Torrentio (Queried FIRST for all Movies and TV series/episodes for maximum precision)
+  // Torrentio (Queried for all Movies and TV series/episodes)
   if (!isNonVideo) {
     searchPromises.push(searchTorrentioEngine(query, options));
   }
