@@ -230,12 +230,45 @@ async function searchTorrentioEngine(
       return { success: false, query, total: 0, items: [], mirrorUsed: 'torrentio', page: 1 };
     }
 
-    let imdbId = '';
+    const POPULAR_IMDB: Record<string, string> = {
+      'game of thrones': 'tt0944947',
+      'house': 'tt0412142',
+      'house md': 'tt0412142',
+      'house m d': 'tt0412142',
+      'dr house': 'tt0412142',
+      'doctor house': 'tt0412142',
+      'breaking bad': 'tt0903747',
+      'better call saul': 'tt3032476',
+      'stranger things': 'tt4574334',
+      'the wire': 'tt0306414',
+      'the sopranos': 'tt0141842',
+      'the boys': 'tt1190634',
+      'succession': 'tt7660850',
+      'severance': 'tt11280740',
+      'the bear': 'tt14452776',
+      'shogun': 'tt2788310',
+      'fallout': 'tt12637874',
+      'attack on titan': 'tt2560140',
+      'rick and morty': 'tt2861424',
+      'interstellar': 'tt0816692',
+      'dune': 'tt1160419',
+      'dune 2': 'tt15239678',
+      'dune part two': 'tt15239678',
+      'oppenheimer': 'tt15398776',
+      'the dark knight': 'tt0468569',
+      'inception': 'tt1375666',
+      'fight club': 'tt0137523',
+      'pulp fiction': 'tt0110912',
+      'the matrix': 'tt0133093'
+    };
+
+    let imdbId = POPULAR_IMDB[cleanTitle.toLowerCase()] || '';
+
     const fetchMeta = async (catalogType: 'series' | 'movie') => {
       try {
         const metaRes = await fetch(
           `https://v3-cinemeta.strem.io/catalog/${catalogType}/top/search=${encodeURIComponent(cleanTitle)}.json`,
-          { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, signal: AbortSignal.timeout(2000), cache: 'no-store' }
+          { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, signal: AbortSignal.timeout(4000), cache: 'no-store' }
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
@@ -251,22 +284,24 @@ async function searchTorrentioEngine(
       return '';
     };
 
-    if (isSeries) {
-      imdbId = await fetchMeta('series');
-      if (imdbId) {
-        isSeries = true;
-      } else {
-        imdbId = await fetchMeta('movie');
-        if (imdbId) isSeries = false;
-      }
-    } else {
-      imdbId = await fetchMeta('movie');
-      if (imdbId) {
-        isSeries = false;
-      } else {
+    if (!imdbId) {
+      if (isSeries) {
         imdbId = await fetchMeta('series');
         if (imdbId) {
           isSeries = true;
+        } else {
+          imdbId = await fetchMeta('movie');
+          if (imdbId) isSeries = false;
+        }
+      } else {
+        imdbId = await fetchMeta('movie');
+        if (imdbId) {
+          isSeries = false;
+        } else {
+          imdbId = await fetchMeta('series');
+          if (imdbId) {
+            isSeries = true;
+          }
         }
       }
     }
@@ -281,7 +316,7 @@ async function searchTorrentioEngine(
 
     const streamRes = await fetch(streamUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(4500),
       cache: 'no-store'
     });
 
