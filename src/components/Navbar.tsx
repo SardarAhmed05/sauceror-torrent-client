@@ -41,25 +41,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl bg-[#141721] border border-[#232838] shadow-sm z-10">
           <button
             onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
               activeTab === 'chat'
-                ? 'bg-amber-500 text-black shadow-sm'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>AI Discovery</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('explorer')}
-            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'explorer'
-                ? 'bg-amber-500 text-black shadow-sm'
+                ? 'bg-amber-500 text-black shadow-sm font-bold'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'
             }`}
           >
             <Search className="w-4 h-4 shrink-0" />
+            <span>Search</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('explorer')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              activeTab === 'explorer'
+                ? 'bg-amber-500 text-black shadow-sm font-bold'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'
+            }`}
+          >
+            <Radio className="w-4 h-4 shrink-0" />
             <span>Browse</span>
           </button>
         </nav>

@@ -256,8 +256,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       {messages.length > 1 && (
         <div className="flex items-center justify-between px-2 pb-2 text-xs text-gray-400 border-b border-[#1e2330] mb-2">
           <span className="flex items-center gap-1.5 font-medium text-gray-400">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>AI Discovery Session</span>
+            <Search className="w-3.5 h-3.5 text-amber-400" />
+            <span>Search Session</span>
           </span>
           <button
             onClick={handleClearChat}
