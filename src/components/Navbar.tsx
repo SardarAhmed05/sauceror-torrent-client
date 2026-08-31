@@ -18,9 +18,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full ext-header">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 relative flex items-center justify-between gap-2">
         {/* Brand Logo - Film Reel identity */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 z-10">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('chat')}>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 p-1 flex items-center justify-center shadow-sm">
               <img src="/icon.svg" alt="Sauceror" className="w-full h-full object-contain" />
@@ -37,23 +37,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </div>
 
-        {/* Center Tabs */}
-        <nav className="flex items-center gap-1 p-1 rounded-xl bg-[#141721] border border-[#232838]">
+        {/* Center Tabs - Perfectly Center Aligned */}
+        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl bg-[#141721] border border-[#232838] shadow-sm z-10">
           <button
             onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
               activeTab === 'chat'
                 ? 'bg-amber-500 text-black shadow-sm'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'
             }`}
           >
-            <Bot className="w-4 h-4 shrink-0" />
-            <span>AI Search</span>
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span>AI Discovery</span>
           </button>
 
           <button
             onClick={() => setActiveTab('explorer')}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
               activeTab === 'explorer'
                 ? 'bg-amber-500 text-black shadow-sm'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1e2b]'

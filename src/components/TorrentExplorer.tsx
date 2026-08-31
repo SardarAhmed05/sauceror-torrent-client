@@ -224,12 +224,28 @@ export const TorrentExplorer: React.FC<TorrentExplorerProps> = ({
           </button>
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="ext-card rounded-xl p-10 text-center max-w-md mx-auto space-y-2">
-          <FolderOpen className="w-10 h-10 text-gray-600 mx-auto" />
-          <h3 className="font-semibold text-white text-sm">No Torrents Found</h3>
-          <p className="text-xs text-gray-400">
-            No active releases matched your search criteria. Try different keywords.
-          </p>
+        <div className="ext-card rounded-2xl p-8 sm:p-10 text-center max-w-lg mx-auto space-y-4">
+          <FolderOpen className="w-10 h-10 text-gray-500 mx-auto" />
+          <div className="space-y-1">
+            <h3 className="font-bold text-white text-sm sm:text-base">No Matching Torrents Found</h3>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              No verified releases matched "{query}". Try one of these popular titles:
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+            {['Interstellar', 'Dune Part Two', 'Game of Thrones', 'House S01', 'Ubuntu 24.04'].map((sug) => (
+              <button
+                key={sug}
+                onClick={() => {
+                  setQuery(sug);
+                  executeSearch(sug, 1, activeCategory);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#1e2330] hover:bg-[#282e3f] text-xs font-semibold text-gray-200 border border-[#2b3245] transition-all hover:border-amber-500/50 hover:text-amber-300 active:scale-95"
+              >
+                {sug}
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="space-y-2">

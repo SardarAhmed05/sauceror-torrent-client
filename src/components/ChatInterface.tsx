@@ -252,6 +252,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] max-w-5xl mx-auto p-2 sm:p-4">
+      {/* Top Header Bar with Clear Action */}
+      {messages.length > 1 && (
+        <div className="flex items-center justify-between px-2 pb-2 text-xs text-gray-400 border-b border-[#1e2330] mb-2">
+          <span className="flex items-center gap-1.5 font-medium text-gray-400">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>AI Discovery Session</span>
+          </span>
+          <button
+            onClick={handleClearChat}
+            className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+            title="Reset and clear current conversation"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Session</span>
+          </button>
+        </div>
+      )}
+
       {/* Chat Messages Area */}
       <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-4">
         {messages.map((msg) => {
@@ -439,7 +457,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-[#1e2330] disabled:text-gray-600 text-black font-bold shadow-sm transition-all active:scale-95 shrink-0"
+            className="inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-[#1e2330] disabled:text-gray-500 text-black font-bold shadow-sm transition-all active:scale-95 shrink-0"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin text-black" />
