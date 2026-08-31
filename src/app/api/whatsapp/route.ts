@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
 
   // Diagnostic health checker for environment variables
   if (searchParams.get('debug') === '1') {
-    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const rawToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
+    const token = rawToken.trim().replace(/^["']|["']$/g, '');
     return NextResponse.json({
       status: 'diagnostic',
       hasAccessToken: !!token,
@@ -39,6 +40,45 @@ export async function GET(req: NextRequest) {
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || 'AUTO_FROM_PAYLOAD',
       hasVerifyToken: !!process.env.WHATSAPP_VERIFY_TOKEN
     });
+  }
+
+  // Direct live test message sender to test Meta Graph API connectivity
+  if (searchParams.get('test_send')) {
+    const rawTo = searchParams.get('test_send')!;
+    const cleanTo = rawTo.replace(/\D/g, '');
+    const token = (process.env.WHATSAPP_ACCESS_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+    const phoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || '1330728216782410').trim().replace(/^["']|["']$/g, '');
+
+    try {
+      const metaRes = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanTo,
+          type: 'text',
+          text: { body: '🎬 *Test Message from Sauceror AI Agent*\n\nYour Meta WhatsApp Cloud API is connected and working! 🚀\n\nTry sending me: *Interstellar 1080p under 2 gbs*' }
+        })
+      });
+
+      const metaData = await metaRes.json();
+      return NextResponse.json({
+        httpStatus: metaRes.status,
+        ok: metaRes.ok,
+        to: cleanTo,
+        phoneIdUsed: phoneId,
+        metaResponse: metaData
+      });
+    } catch (err: any) {
+      return NextResponse.json({
+        status: 'error',
+        error: err.message
+      }, { status: 500 });
+    }
   }
 
   const mode = searchParams.get('hub.mode');
@@ -151,8 +191,10 @@ export async function POST(req: NextRequest) {
 
     // 2. If request came from Meta Cloud API, send reply via Graph API
     if (isMeta) {
-      const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || metaPhoneNumberId;
+      const rawToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
+      const accessToken = rawToken.trim().replace(/^["']|["']$/g, '');
+      const rawPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || metaPhoneNumberId || '1330728216782410';
+      const phoneNumberId = rawPhoneId.trim().replace(/^["']|["']$/g, '');
 
       if (!accessToken) {
         console.error('WhatsApp Bot Error: WHATSAPP_ACCESS_TOKEN is not configured in environment variables!');
