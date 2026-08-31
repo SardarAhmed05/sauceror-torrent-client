@@ -83,6 +83,8 @@ export function isStrictTitleMatch(itemTitle: string, targetTitle: string, alter
     extraTargets.push('attack on titan', 'shingeki no kyojin', 'aot');
   } else if (targetTitle.toLowerCase().includes('dune')) {
     extraTargets.push('dune 2', 'dune part two', 'dune part 2', 'dune 1', 'dune part one');
+  } else if (targetTitle.toLowerCase() === 'the office' || targetTitle.toLowerCase() === 'office') {
+    extraTargets.push('the office us', 'the office uk', 'the office (us)', 'the office (uk)');
   }
 
   const targets = Array.from(new Set([targetTitle, ...(alternateTitles || []), ...extraTargets]));
