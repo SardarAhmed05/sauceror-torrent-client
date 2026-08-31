@@ -35,25 +35,19 @@ export default function Home() {
         activeMirror={activeMirror}
       />
 
-      {/* Main Tab Views */}
-      <div className="flex-1">
-        {activeTab === 'chat' && (
-          <div className="animate-fade-in">
-            <ChatInterface apiKey={apiKey} activeMirror={activeMirror} />
-          </div>
-        )}
+      {/* Main Tab Views - Kept mounted to preserve state across tab switches */}
+      <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
+          <ChatInterface apiKey={apiKey} activeMirror={activeMirror} />
+        </div>
 
-        {activeTab === 'explorer' && (
-          <div className="animate-fade-in">
-            <TorrentExplorer activeMirror={activeMirror} />
-          </div>
-        )}
+        <div className={`flex-1 flex flex-col ${activeTab === 'explorer' ? 'block' : 'hidden'}`}>
+          <TorrentExplorer activeMirror={activeMirror} />
+        </div>
 
-        {activeTab === 'whatsapp' && (
-          <div className="animate-fade-in">
-            <WhatsAppSimulator />
-          </div>
-        )}
+        <div className={`flex-1 flex flex-col ${activeTab === 'whatsapp' ? 'block' : 'hidden'}`}>
+          <WhatsAppSimulator />
+        </div>
       </div>
 
       {/* Settings Modal */}

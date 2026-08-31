@@ -35,7 +35,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       id: 'welcome-msg',
       role: 'assistant',
       content:
-        '👋 **Welcome to Sauceror**, your AI-powered torrent search engine.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Game of Thrones Season 1"*, *"Dune 2 4K"*). I will extract verified releases, verify seeds/sizes, and provide instant magnet links.',
+        '👋 **Welcome to Sauceror**, your AI-powered torrent search engine.\n\nEnter what you want to download (e.g. *"Interstellar 1080p under 2 gbs"*, *"Game of Thrones Season 1"*, *"Dune 2 4K"*). I will extract verified releases, verify seeds/sizes, and provide instant magnet links.\n\n> 💡 **Note on Torrent Sizes & Searches**: File sizes for multi-episode series and season packs may reflect individual episode streams or full collection archives. If a rare release doesn\'t show up, try adding the release year (e.g. *"Dune 2024"* or *"House Season 1"*).',
       timestamp: Date.now(),
       status: 'done',
     },
@@ -45,6 +45,30 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [currentThoughts, setCurrentThoughts] = useState<string[]>([]);
   const [expandedLists, setExpandedLists] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Restore chat messages from sessionStorage on initial load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('sauceror_session_msgs');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  // Save chat messages to sessionStorage when updated
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
+      try {
+        sessionStorage.setItem('sauceror_session_msgs', JSON.stringify(messages));
+      } catch (e) {}
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,9 +80,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const quickPrompts = [
     { label: 'Interstellar 1080p under 2 gbs', icon: '🎬' },
-    { label: 'Ubuntu 24.04 LTS Desktop ISO', icon: '💿' },
-    { label: 'Python Data Science Handbook PDF', icon: '📚' },
-    { label: 'Cyberpunk 2077 PC', icon: '🎮' },
+    { label: 'Game of Thrones Season 1', icon: '📺' },
+    { label: 'Dune Part Two 4K', icon: '🍿' },
+    { label: 'House Season 1', icon: '🩺' },
   ];
 
   const toggleExpand = (msgId: string) => {

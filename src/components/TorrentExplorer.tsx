@@ -18,18 +18,14 @@ interface TorrentExplorerProps {
 const CATEGORIES = [
   { id: 'All', label: 'All', icon: '🌐' },
   { id: 'Movies', label: 'Movies', icon: '🎬' },
-  { id: 'TV', label: 'TV Series', icon: '📺' },
-  { id: 'Music', label: 'Music', icon: '🎵' },
-  { id: 'Games', label: 'Games', icon: '🎮' },
-  { id: 'Apps', label: 'Apps / Linux', icon: '💻' },
-  { id: 'Books', label: 'Books', icon: '📚' },
+  { id: 'TV', label: 'TV Shows', icon: '📺' },
   { id: 'Anime', label: 'Anime', icon: '✨' },
 ];
 
 export const TorrentExplorer: React.FC<TorrentExplorerProps> = ({
   activeMirror,
 }) => {
-  const [query, setQuery] = useState('ubuntu');
+  const [query, setQuery] = useState('Interstellar');
   const [activeCategory, setActiveCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'seeds' | 'age' | 'size'>('seeds');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');

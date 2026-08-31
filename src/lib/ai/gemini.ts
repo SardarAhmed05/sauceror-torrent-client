@@ -469,6 +469,10 @@ export async function synthesizeAgentResponse(
       if (analysis.maxSizeBytes) {
         msg += ` (Note: Size constraint was under ${(analysis.maxSizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB).`;
       }
+      msg += `\n\n💡 **Tips to find this release:**\n` +
+        `• **Add the release year:** e.g. *"${analysis.coreTitle || analysis.cleanQuery} 2024"*\n` +
+        `• **Specify a season or episode:** e.g. *"${analysis.coreTitle || analysis.cleanQuery} Season 1"*\n` +
+        `• **Try alternative keywords or simpler titles.**`;
       return msg;
     }
     const best = topItems[0];
