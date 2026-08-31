@@ -21,6 +21,14 @@ export function formatWhatsAppMessage(
 
   const best = topPick || items[0];
 
+  // Create a clean, compact magnet without messy URL-encoded tracker clutter
+  let cleanMagnet = best.magnetUrl || '';
+  if (cleanMagnet.includes('&tr=')) {
+    // Keep xt and dn for ultra clean 1-tap copy
+    const parts = cleanMagnet.split('&tr=');
+    cleanMagnet = parts[0];
+  }
+
   let msg = `⚡ *SAUCEROR AI AGENT* ⚡\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
   msg += `🔎 *Query:* "${query}"\n`;
@@ -28,34 +36,33 @@ export function formatWhatsAppMessage(
 
   msg += `🎯 *TOP RECOMMENDATION*\n`;
   msg += `📁 *Title:* ${best.title}\n`;
-  msg += `📦 *Size:* ${best.size}\n`;
-  msg += `🌱 *Seeders:* ${best.seeders} | 🔻 *Leechers:* ${best.leechers}\n`;
+  msg += `📦 *Size:* ${best.size}  |  🌱 *Seeds:* ${best.seeders}\n`;
   msg += `🏷️ *Category:* ${best.category}${best.subcategory ? ` / ${best.subcategory}` : ''}\n`;
-  msg += `🕒 *Uploaded:* ${best.age}\n`;
   if (best.sourceTracker) {
     msg += `🌐 *Source:* ${best.sourceTracker}\n`;
   }
   msg += `\n`;
 
-  if (best.magnetUrl) {
-    msg += `🧲 *MAGNET LINK:*\n\`\`\`\n${best.magnetUrl}\n\`\`\`\n\n`;
-    msg += `👉 _Tap and hold to copy magnet link, or open in torrent client._\n\n`;
-  } else {
+  if (cleanMagnet) {
+    msg += `🧲 *TAP & HOLD TO COPY MAGNET:*\n\`\`\`\n${cleanMagnet}\n\`\`\`\n\n`;
+    msg += `👉 _Paste into Flud, uTorrent, LibreTorrent, or qBittorrent to start downloading._\n\n`;
+  } else if (best.detailUrl) {
     msg += `🔗 *Detail Link:*\n${best.detailUrl}\n\n`;
   }
 
+  msg += `🌐 *View & Search on Web:*\nhttps://sauceror.vercel.app\n\n`;
+
   const otherReleases = items.filter((it) => it.id !== best.id);
   if (otherReleases.length > 0) {
-    msg += `📋 *OTHER MATCHING RELEASES FOR THIS TITLE:*\n`;
-    otherReleases.slice(0, 5).forEach((item, idx) => {
+    msg += `📋 *OTHER VERSIONS AVAILABLE:*\n`;
+    otherReleases.slice(0, 4).forEach((item, idx) => {
       msg += `${idx + 2}. *${item.title}*\n`;
-      msg += `   ↳ 📦 ${item.size} | 🌱 ${item.seeders} seeds | 🌐 ${item.sourceTracker || 'ext'}\n`;
+      msg += `   ↳ 📦 ${item.size}  •  🌱 ${item.seeders} seeds\n`;
     });
   }
 
   msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `🤖 _Sauceror AI • Built by Sardar Ahmed_\n`;
-  msg += `🌐 _github.com/SardarAhmed05/sauceror-torrent-client_`;
+  msg += `🤖 _Sauceror AI • Built by Sardar Ahmed_`;
 
   return msg;
 }
