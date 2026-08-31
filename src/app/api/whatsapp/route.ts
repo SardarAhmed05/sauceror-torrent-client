@@ -26,6 +26,21 @@ function escapeXml(unsafe: string): string {
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
+
+  // Diagnostic health checker for environment variables
+  if (searchParams.get('debug') === '1') {
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    return NextResponse.json({
+      status: 'diagnostic',
+      hasAccessToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenPreview: token ? `${token.slice(0, 8)}...${token.slice(-4)}` : 'MISSING',
+      hasPhoneNumberId: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
+      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || 'AUTO_FROM_PAYLOAD',
+      hasVerifyToken: !!process.env.WHATSAPP_VERIFY_TOKEN
+    });
+  }
+
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
