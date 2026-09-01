@@ -320,19 +320,22 @@ export async function runAgent(
     isStrictTitleMatch(it.title, analysis.canonicalTitle || analysis.coreTitle, analysis.alternateTitles)
   );
 
-  // If user searched for a TV show/season, strictly require TV markers and eliminate standalone movies
+  // If strict title match dropped everything, safely fall back to rawItems
+  if (titleFilteredItems.length === 0 && rawItems.length > 0) {
+    titleFilteredItems = rawItems;
+  }
+
+  // If user searched for a TV show/season, prefer TV markers
   if (analysis.intent === 'tv_season_pack' || analysis.intent === 'tv_single_episode' || analysis.category === 'TV') {
     const tvFiltered = titleFilteredItems.filter(it => {
       if (isMovieRelease(it.title)) return false;
       const lower = it.title.toLowerCase();
-      const hasTvMarker = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+|s\d{1,2}\b|episode\s*\d+|ep\s*\d+|complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|seasons\s*\d+|tv\s+series|batch)\b/i.test(lower);
+      const hasTvMarker = /\b(?:s\d{1,2}e\d{1,2}|season\s*\d+|s\d{1,2}\b|episode\s*\d+|ep\s*\d+|complete\s+series|all\s+seasons|the\s+complete\s+seasons|complete\s+season|seasons\s*\d+|tv\s+series|batch|complete)\b/i.test(lower);
       return hasTvMarker;
     });
 
     if (tvFiltered.length > 0) {
       titleFilteredItems = tvFiltered;
-    } else {
-      titleFilteredItems = [];
     }
   }
 
