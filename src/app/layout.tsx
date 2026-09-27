@@ -9,6 +9,9 @@ export const metadata: Metadata = {
     shortcut: '/icon.svg',
     apple: '/icon.svg',
   },
+  other: {
+    'google-adsense-account': 'ca-pub-4863342960049409',
+  },
 };
 
 export default function RootLayout({
@@ -18,6 +21,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4863342960049409"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="bg-[#0b0f19] text-gray-100 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-200">
         {children}
       </body>
